@@ -2,6 +2,7 @@ package main
 
 import (
 	"delsignbackend/middleware"
+	"delsignbackend/users"
 	"fmt"
 	"log"
 	"net/http"
@@ -29,6 +30,7 @@ func RunServer() {
 
 	r.HandleFunc("/api/v1/users/{email}", getUser).Methods("GET")
 	ar.HandleFunc("/api/v1/authping", authPingHandler).Methods("GET")
+	ar.HandleFunc("/api/v1/keyreg", users.KeyRegCreate).Methods("POST")
 
 	an := negroni.New(negroni.HandlerFunc(middleware.AuthzMiddleWare), negroni.Wrap(ar))
 	r.PathPrefix("/api").Handler(an)
