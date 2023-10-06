@@ -3,6 +3,7 @@ package main
 import (
 	"delsignbackend/middleware"
 	"delsignbackend/users"
+	"delsignbackend/wallets"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,6 +29,7 @@ func RunServer() {
 	r.HandleFunc("/api/v1/users/{email}", users.GetUser).Methods("GET")
 	ar.HandleFunc("/api/v1/authping", authPingHandler).Methods("GET")
 	ar.HandleFunc("/api/v1/keyreg", users.KeyRegCreate).Methods("POST")
+	ar.HandleFunc("/api/v1/wallets", wallets.WalletCreate).Methods("POST")
 
 	an := negroni.New(negroni.HandlerFunc(middleware.AuthzMiddleWare), negroni.Wrap(ar))
 	r.PathPrefix("/api").Handler(an)
@@ -49,6 +51,7 @@ func registerShutdownHooks() {
 		for _ = range c {
 			log.Println("Shutting down DB...")
 			users.UserDatabase.ShutdownDB()
+			wallets.WalletsDatabase.Close()
 
 			log.Println("Shutting down server...")
 			os.Exit(0)
@@ -60,6 +63,7 @@ func main() {
 
 	log.Println("Initialize db connection...")
 	users.UserDatabase = users.NewUserDB()
+	wallets.WalletsDatabase = wallets.NewWalletsDB()
 
 	log.Println("register shutdown hooks...")
 	registerShutdownHooks()
