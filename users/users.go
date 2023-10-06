@@ -7,9 +7,12 @@ import (
 	"crypto/x509"
 	"delsignbackend/helpers"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+
+	"github.com/gorilla/mux"
 )
 
 type KeyReg struct {
@@ -42,7 +45,12 @@ func KeyRegCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Print("KeyReg content and signature validated")
+	log.Print("KeyReg content and signature validated - store in db")
+	err = UserDatabase.NewUserReg(&kr)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 func validateKeyReg(ctx context.Context, kr *KeyReg) error {
@@ -84,4 +92,24 @@ func validateKeyReg(ctx context.Context, kr *KeyReg) error {
 	}
 
 	return nil
+}
+
+type UserInfo struct {
+	Email  string `json:"email"`
+	PubKey string `json:"pubkey"`
+}
+
+func GetUser(w http.ResponseWriter, r *http.Request) {
+	params := mux.Vars(r)
+	log.Println("lookup ", params["email"])
+	userInfo, err := UserDatabase.GetUser(params["email"])
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(userInfo)
+
 }

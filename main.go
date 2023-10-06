@@ -1,9 +1,7 @@
 package main
 
 import (
-	"delsignbackend/db"
 	"delsignbackend/middleware"
-	"delsignbackend/state"
 	"delsignbackend/users"
 	"fmt"
 	"log"
@@ -14,11 +12,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
 )
-
-func getUser(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	fmt.Println(params["email"])
-}
 
 func authPingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Auth ping")
@@ -32,7 +25,7 @@ func RunServer() {
 	// Router for protected routes that require an auth token
 	ar := mux.NewRouter()
 
-	r.HandleFunc("/api/v1/users/{email}", getUser).Methods("GET")
+	r.HandleFunc("/api/v1/users/{email}", users.GetUser).Methods("GET")
 	ar.HandleFunc("/api/v1/authping", authPingHandler).Methods("GET")
 	ar.HandleFunc("/api/v1/keyreg", users.KeyRegCreate).Methods("POST")
 
@@ -55,7 +48,7 @@ func registerShutdownHooks() {
 	go func() {
 		for _ = range c {
 			log.Println("Shutting down DB...")
-			state.UserDatabase.ShutdownDB()
+			users.UserDatabase.ShutdownDB()
 
 			log.Println("Shutting down server...")
 			os.Exit(0)
@@ -66,7 +59,7 @@ func registerShutdownHooks() {
 func main() {
 
 	log.Println("Initialize db connection...")
-	state.UserDatabase = db.NewUserDB()
+	users.UserDatabase = users.NewUserDB()
 
 	log.Println("register shutdown hooks...")
 	registerShutdownHooks()
