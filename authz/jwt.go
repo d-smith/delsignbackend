@@ -23,5 +23,5 @@ func ValidateToken(token string, signedJWTKey string) (interface{}, error) {
 		return nil, fmt.Errorf("invalid token claim")
 	}
 
-	return claims["sub"], nil
+	return claims, nil
 }

@@ -1,11 +1,14 @@
 package middleware
 
 import (
+	"context"
 	"delsignbackend/authz"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/golang-jwt/jwt"
 )
 
 func AuthzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
@@ -32,7 +35,10 @@ func AuthzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.HandlerF
 	}
 
 	log.Println("claimz", claimz)
+	email := (claimz.(jwt.MapClaims))["email"]
+	ctx := r.Context()
+	ctx = context.WithValue(ctx, "email", email)
 
-	next(rw, r)
-	// do some stuff after
+	next(rw, r.WithContext(ctx))
+	// do some stuff afters
 }
