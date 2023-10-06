@@ -1,11 +1,15 @@
 package main
 
 import (
+	"delsignbackend/db"
 	"delsignbackend/middleware"
+	"delsignbackend/state"
 	"delsignbackend/users"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
 
 	"github.com/gorilla/mux"
 	"github.com/urfave/negroni"
@@ -45,7 +49,28 @@ func RunServer() {
 
 }
 
+func registerShutdownHooks() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		for _ = range c {
+			log.Println("Shutting down DB...")
+			state.UserDatabase.ShutdownDB()
+
+			log.Println("Shutting down server...")
+			os.Exit(0)
+		}
+	}()
+}
+
 func main() {
-	log.Println("Starting server...")
+
+	log.Println("Initialize db connection...")
+	state.UserDatabase = db.NewUserDB()
+
+	log.Println("register shutdown hooks...")
+	registerShutdownHooks()
+
+	log.Println("Start server...")
 	RunServer()
 }
