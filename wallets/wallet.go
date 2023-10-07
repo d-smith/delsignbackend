@@ -37,6 +37,26 @@ func WalletCreate(rw http.ResponseWriter, r *http.Request) {
 
 }
 
+func GetWallets(rw http.ResponseWriter, r *http.Request) {
+	// Get the user email from the jwt claims
+	email := r.Context().Value("email").(string)
+	if email == "" {
+		http.Error(rw, "Missing email", 403)
+		return
+	}
+
+	// Get the wallet ids for this user
+	wallets, err := WalletsDatabase.ListWallets(email)
+	if err != nil {
+		http.Error(rw, err.Error(), 500)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusCreated)
+	json.NewEncoder(rw).Encode(wallets)
+}
+
 type WalletsDB struct {
 	db *sql.DB
 }
@@ -68,4 +88,24 @@ func (wdb *WalletsDB) CreateWallet(email string) (int, error) {
 
 func (wdb *WalletsDB) Close() {
 	wdb.db.Close()
+}
+
+func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
+	var wallets []int
+
+	rows, err := wdb.db.Query("SELECT id FROM wallets WHERE email=?;", email)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var walletId int
+		err = rows.Scan(&walletId)
+		if err != nil {
+			return nil, err
+		}
+		wallets = append(wallets, walletId)
+	}
+
+	return wallets, nil
 }
