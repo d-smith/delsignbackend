@@ -54,6 +54,7 @@ func registerShutdownHooks() {
 			log.Println("Shutting down DB...")
 			users.UserDatabase.ShutdownDB()
 			wallets.WalletsDatabase.Close()
+			wallets.AddressDatabase.Close()
 
 			log.Println("Shutting down server...")
 			os.Exit(0)
@@ -66,6 +67,7 @@ func main() {
 	log.Println("Initialize db connection...")
 	users.UserDatabase = users.NewUserDB()
 	wallets.WalletsDatabase = wallets.NewWalletsDB()
+	wallets.AddressDatabase = wallets.NewAddressDB()
 
 	log.Println("register shutdown hooks...")
 	registerShutdownHooks()

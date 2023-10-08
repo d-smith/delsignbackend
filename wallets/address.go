@@ -2,13 +2,12 @@ package wallets
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"encoding/hex"
+	"database/sql"
 	"log"
 	"net/http"
+	"strconv"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/gorilla/mux"
 )
@@ -19,12 +18,23 @@ type Address struct {
 	PublicKey  string
 }
 
-func encode(privateKey *ecdsa.PrivateKey, publicKey *ecdsa.PublicKey) (string, string) {
-	privateKeyBytes, _ := x509.MarshalECPrivateKey(privateKey)
-	publicKeyBytes, _ := x509.MarshalPKIXPublicKey(publicKey)
-	privateKeyString := hex.EncodeToString(privateKeyBytes)
-	publicKeyString := hex.EncodeToString(publicKeyBytes)
-	return privateKeyString, publicKeyString
+type AddressDB struct {
+	db *sql.DB
+}
+
+func NewAddressDB() *AddressDB {
+	db, err := sql.Open("sqlite3", dbfile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return &AddressDB{db: db}
+}
+
+var AddressDatabase *AddressDB
+
+func (adb *AddressDB) Close() {
+	adb.db.Close()
 }
 
 func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {
@@ -32,15 +42,31 @@ func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {
 }
 
 func NewAddress() *Address {
-	privateKey, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	priv, pub := encode(privateKey, &privateKey.PublicKey)
-	address := EOAFromPublicKey(&privateKey.PublicKey)
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	privateKeyBytes := crypto.FromECDSA(privateKey)
+	log.Println("Private Key:", hexutil.Encode(privateKeyBytes))
+
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Fatal("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
+	}
+
+	publicKeyBytes := crypto.FromECDSAPub(publicKeyECDSA)
+	log.Println("Public Key:", hexutil.Encode(publicKeyBytes))
+
+	log.Println("Generating address")
+	address := EOAFromPublicKey(publicKey.(*ecdsa.PublicKey))
 	log.Printf("Generated address %s\n", address)
 
 	return &Address{
 		EOA:        address,
-		PrivateKey: priv,
-		PublicKey:  pub,
+		PrivateKey: hexutil.Encode(privateKeyBytes),
+		PublicKey:  hexutil.Encode(publicKeyBytes),
 	}
 }
 
@@ -61,8 +87,20 @@ func CreateAddressForWallet(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("Check user owns wallet %s\n", walletId)
+	id, err := strconv.Atoi(walletId)
+	if err != nil {
+		http.Error(rw, "Invalid wallet id", 403)
+		return
+	}
+
+	if WalletsDatabase.UserOwnsWallet(email, id) == false {
+		http.Error(rw, "Invalid wallet id", 403)
+		return
+	}
 
 	// Generate new address
+	address := NewAddress()
+	log.Printf("New address %s\n", address.EOA)
 
 	// Store it
 

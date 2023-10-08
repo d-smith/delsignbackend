@@ -90,6 +90,15 @@ func (wdb *WalletsDB) Close() {
 	wdb.db.Close()
 }
 
+func (wdb *WalletsDB) UserOwnsWallet(email string, walletId int) bool {
+	var id int
+	err := wdb.db.QueryRow("SELECT id FROM wallets WHERE email=? AND id=?;", email, walletId).Scan(&id)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
 	var wallets []int
 
