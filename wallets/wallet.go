@@ -118,3 +118,49 @@ func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
 
 	return wallets, nil
 }
+
+type WalletAddressPair struct {
+	WalletId int    `json:"walletId"`
+	Address  string `json:"address"`
+}
+
+func (wdb *WalletsDB) WalletsAndAddressesForUser(email string) ([]WalletAddressPair, error) {
+	var pairs []WalletAddressPair
+
+	rows, err := wdb.db.Query("select w.id, a.address from wallets w, addresses a WHERE w.email=? and a.wallet_id = w.id order by w.id ;", email)
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+
+	for rows.Next() {
+		var pair WalletAddressPair
+		err = rows.Scan(&pair.WalletId, &pair.Address)
+		if err != nil {
+			return nil, err
+		}
+		pairs = append(pairs, pair)
+	}
+
+	return pairs, nil
+}
+
+func GetWalletAndAddressesForUser(rw http.ResponseWriter, r *http.Request) {
+	// Get the user email from the jwt claims
+	email := r.Context().Value("email").(string)
+	if email == "" {
+		http.Error(rw, "Missing email", 403)
+		return
+	}
+
+	// Get the wallet ids for this user
+	pairs, err := WalletsDatabase.WalletsAndAddressesForUser(email)
+	if err != nil {
+		http.Error(rw, err.Error(), 500)
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+	json.NewEncoder(rw).Encode(pairs)
+}
