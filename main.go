@@ -1,6 +1,7 @@
 package main
 
 import (
+	"delsignbackend/chain"
 	"delsignbackend/middleware"
 	"delsignbackend/users"
 	"delsignbackend/wallets"
@@ -33,6 +34,7 @@ func RunServer() {
 	ar.HandleFunc("/api/v1/wallets", wallets.GetWallets).Methods("GET")
 	ar.HandleFunc("/api/v1/wallets/{id}/addresses", wallets.CreateAddressForWallet).Methods("POST")
 	ar.HandleFunc("/api/v1/walletctx", wallets.GetWalletAndAddressesForUser).Methods("GET")
+	ar.HandleFunc("/api/v1/wallets/balance/{address}", chain.GetBalance).Methods("GET")
 
 	an := negroni.New(negroni.HandlerFunc(middleware.AuthzMiddleWare), negroni.Wrap(ar))
 	r.PathPrefix("/api").Handler(an)
@@ -69,6 +71,7 @@ func main() {
 	users.UserDatabase = users.NewUserDB()
 	wallets.WalletsDatabase = wallets.NewWalletsDB()
 	wallets.AddressDatabase = wallets.NewAddressDB()
+	chain.EthChain = chain.NewEthereumChain()
 
 	log.Println("register shutdown hooks...")
 	registerShutdownHooks()
