@@ -13,3 +13,8 @@ To create the database:
 sqlite3 delsign.db < db/schema.sql
 ```
 
+To interact with the database:
+
+```
+sqlite3 delsign.db
+```

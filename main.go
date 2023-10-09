@@ -31,7 +31,7 @@ func RunServer() {
 	ar.HandleFunc("/api/v1/keyreg", users.KeyRegCreate).Methods("POST")
 	ar.HandleFunc("/api/v1/wallets", wallets.WalletCreate).Methods("POST")
 	ar.HandleFunc("/api/v1/wallets", wallets.GetWallets).Methods("GET")
-	ar.HandleFunc("/api/v1/wallets/{id}/address", wallets.CreateAddressForWallet).Methods("POST")
+	ar.HandleFunc("/api/v1/wallets/{id}/addresses", wallets.CreateAddressForWallet).Methods("POST")
 
 	an := negroni.New(negroni.HandlerFunc(middleware.AuthzMiddleWare), negroni.Wrap(ar))
 	r.PathPrefix("/api").Handler(an)

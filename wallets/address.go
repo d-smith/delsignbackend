@@ -3,6 +3,7 @@ package wallets
 import (
 	"crypto/ecdsa"
 	"database/sql"
+	"encoding/json"
 	"log"
 	"net/http"
 	"strconv"
@@ -35,6 +36,15 @@ var AddressDatabase *AddressDB
 
 func (adb *AddressDB) Close() {
 	adb.db.Close()
+}
+
+func (adb *AddressDB) CreateAddressForWallet(walletId int, eoa string, privateKey string, publicKey string) error {
+	_, err := adb.db.Exec("INSERT INTO addresses(wallet_id,address,private_key,public_key) VALUES(?,?,?,?);", walletId, eoa, privateKey, publicKey)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {
@@ -70,6 +80,10 @@ func NewAddress() *Address {
 	}
 }
 
+type EOA struct {
+	EOA string `json:"eoa"`
+}
+
 func CreateAddressForWallet(rw http.ResponseWriter, r *http.Request) {
 	// Get the user email from the jwt claims
 	email := r.Context().Value("email").(string)
@@ -103,6 +117,12 @@ func CreateAddressForWallet(rw http.ResponseWriter, r *http.Request) {
 	log.Printf("New address %s\n", address.EOA)
 
 	// Store it
+	err = AddressDatabase.CreateAddressForWallet(id, address.EOA, address.PrivateKey, address.PublicKey)
 
 	//Return the EOA
+	eoa := EOA{EOA: address.EOA}
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusCreated)
+	json.NewEncoder(rw).Encode(eoa)
+
 }
