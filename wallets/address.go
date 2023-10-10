@@ -2,7 +2,9 @@ package wallets
 
 import (
 	"crypto/ecdsa"
+	"crypto/x509"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -45,6 +47,29 @@ func (adb *AddressDB) CreateAddressForWallet(walletId int, eoa string, privateKe
 	}
 
 	return nil
+}
+
+func (adb *AddressDB) ReadPrivateKeyForAddress(address string) (*ecdsa.PrivateKey, error) {
+	var privateKeyFromDB string
+	err := adb.db.QueryRow("SELECT private_key FROM addresses WHERE address=? ;", address).Scan(&privateKeyFromDB)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Println("private key from db: ", privateKeyFromDB)
+
+	privateKeyBytes, err := hex.DecodeString(privateKeyFromDB)
+	if err != nil {
+		return nil, err
+	}
+
+	privateKey, err := x509.ParseECPrivateKey(privateKeyBytes)
+	if err != nil {
+		return nil, err
+	}
+
+	return privateKey, nil
+
 }
 
 func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {

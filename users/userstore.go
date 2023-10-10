@@ -33,7 +33,7 @@ func (udb *UserDB) ShutdownDB() {
 }
 
 func (udb *UserDB) NewUserReg(keyreg *KeyReg) error {
-	_, err := udb.db.Exec("INSERT INTO users(email,pubkey) VALUES(?,?);",
+	_, err := udb.db.Exec("INSERT OR REPLACE INTO users(email,pubkey) VALUES(?,?);",
 		keyreg.Email, keyreg.PubKey)
 	if err != nil {
 		log.Println("Error inserting new user reg", err)

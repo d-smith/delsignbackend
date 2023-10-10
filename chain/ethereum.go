@@ -2,7 +2,15 @@ package chain
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"delsignbackend/users"
+	"delsignbackend/wallets"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"math/big"
 	"net/http"
@@ -40,6 +48,11 @@ func (eth *EthereumChain) GetBalance(address string) (*big.Int, error) {
 	return balance, err
 }
 
+func (eth *EthereumChain) SendEth(email string, source string, destination string, amount *big.Int) (string, error) {
+	// implementation of eth transaction
+	return "0x", nil
+}
+
 type Balance struct {
 	Address string   `json:"address"`
 	Amount  *big.Int `json:"amount"`
@@ -61,4 +74,99 @@ func GetBalance(rw http.ResponseWriter, r *http.Request) {
 	balance.Amount = amount
 
 	json.NewEncoder(rw).Encode(balance)
+}
+
+type SendPayload struct {
+	SourceAddress      string   `json:"source"`
+	DestinationAddress string   `json:"dest"`
+	Amount             *big.Int `json:"amount"`
+	Signature          string   `json:"sig"`
+}
+
+func SendEth(rw http.ResponseWriter, r *http.Request) {
+	log.Println("SendEth")
+
+	log.Println("extract email from context")
+	email := r.Context().Value("email").(string)
+	if email == "" {
+		http.Error(rw, "Missing email", 403)
+		return
+	}
+
+	log.Println("decode json body")
+	var payload SendPayload
+
+	err := json.NewDecoder(r.Body).Decode(&payload)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("validate signature")
+	valid, err := validateSignature(email, &payload)
+	if !valid || err != nil {
+		http.Error(rw, "Invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	log.Println("Form and broadcast eth transaction")
+	txnid, err := EthChain.SendEth(email, payload.SourceAddress, payload.DestinationAddress, payload.Amount)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	var txnContext struct {
+		TxnId string `json:"txnid"`
+	}
+	txnContext.TxnId = txnid
+
+	rw.Header().Set("Content-Type", "application/json")
+	rw.WriteHeader(http.StatusOK)
+
+	json.NewEncoder(rw).Encode(txnContext)
+}
+
+func validateSignature(email string, payload *SendPayload) (bool, error) {
+	// Is the source address affiliated with the user?
+	if wallets.WalletsDatabase.UserOwnsAddress(email, payload.SourceAddress) == false {
+		log.Printf("User %s does not own source address %s\n", email, payload.SourceAddress)
+		return false, errors.New("Invalid source address")
+	}
+
+	// Form the basis for the hash that was signed
+	msg := fmt.Sprintf("%s%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount)
+
+	hash := sha256.Sum256([]byte(msg))
+
+	// Decode the signature
+	decodedSig, err := hex.DecodeString(payload.Signature)
+	if err != nil {
+		log.Println("Unable to decode signature")
+		return false, errors.New("Unable to decode signature")
+	}
+
+	// Read the signing key context for the address
+	userInfo, err := users.UserDatabase.GetUser(email)
+	if err != nil {
+		log.Printf("Unable to get user info: %s\n", err.Error())
+		return false, errors.New("Unable to get user info")
+	}
+
+	log.Printf("Pubkey for user: %s\n", userInfo.PubKey)
+
+	pubkeyBytes, err := hex.DecodeString(userInfo.PubKey)
+	if err != nil {
+		log.Println("Unable to decode pubkey")
+		return false, errors.New("Unable to decode pubkey")
+	}
+
+	pubkey, err := x509.ParsePKIXPublicKey(pubkeyBytes)
+
+	valid := ecdsa.VerifyASN1(pubkey.(*ecdsa.PublicKey), hash[:], decodedSig)
+	if !valid {
+		log.Println("Invalid signature")
+	}
+
+	return valid, nil
 }

@@ -99,6 +99,18 @@ func (wdb *WalletsDB) UserOwnsWallet(email string, walletId int) bool {
 	return true
 }
 
+func (wdb *WalletsDB) UserOwnsAddress(email string, address string) bool {
+	var id int
+	var lookupAddress string
+	err := wdb.db.QueryRow("select w.id, a.address from wallets w, addresses a WHERE w.email=? and a.address = ? and a.wallet_id = w.id order by w.id;", email, address).Scan(&id, &lookupAddress)
+	if err != nil {
+		log.Printf("Error getting wallet id for address: %s\n", err.Error())
+		return false
+	}
+	log.Printf("Wallet id for address %s is %d", address, id)
+	return true
+}
+
 func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
 	var wallets []int
 
