@@ -16,11 +16,14 @@ import (
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gorilla/mux"
 )
 
 const RPC_ENDPOINT = "http://localhost:8545"
+
+var CHAIN_ID = big.NewInt(1337)
 
 type EthereumChain struct {
 	client *ethclient.Client
@@ -49,8 +52,45 @@ func (eth *EthereumChain) GetBalance(address string) (*big.Int, error) {
 }
 
 func (eth *EthereumChain) SendEth(email string, source string, destination string, amount *big.Int) (string, error) {
-	// implementation of eth transaction
-	return "0x", nil
+	// Get the key for the address
+	privateKey, err := wallets.AddressDatabase.ReadPrivateKeyForAddress(source)
+	if err != nil {
+		log.Println("Unable to get private key for address", err.Error())
+		return "", err
+	}
+
+	//Determine the nonce
+	nonce, err := eth.client.PendingNonceAt(context.Background(), common.HexToAddress(source))
+	if err != nil {
+		log.Println("Unable to get nonce", err.Error())
+		return "", err
+	}
+
+	log.Println("Nonce for", source, " is ", nonce)
+
+	// Determine gas config
+	gasLimit := uint64(21000) // in units
+	gasPrice, err := eth.client.SuggestGasPrice(context.Background())
+
+	// Form the transaction
+	var data []byte
+	tx := types.NewTransaction(nonce, common.HexToAddress(destination), amount, gasLimit, gasPrice, data)
+
+	// Sign the transaction
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(CHAIN_ID), privateKey)
+	if err != nil {
+		log.Println("Unable to sign transaction", err.Error())
+		return "", err
+	}
+
+	// Broadcast the transaction
+	err = eth.client.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		log.Println("Unable to broadcast transaction", err.Error())
+		return "", err
+	}
+
+	return signedTx.Hash().Hex(), nil
 }
 
 type Balance struct {

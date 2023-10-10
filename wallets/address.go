@@ -2,9 +2,7 @@ package wallets
 
 import (
 	"crypto/ecdsa"
-	"crypto/x509"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -56,20 +54,17 @@ func (adb *AddressDB) ReadPrivateKeyForAddress(address string) (*ecdsa.PrivateKe
 		return nil, err
 	}
 
-	log.Println("private key from db: ", privateKeyFromDB)
-
-	privateKeyBytes, err := hex.DecodeString(privateKeyFromDB)
+	privateKeyBytes, err := hexutil.Decode(privateKeyFromDB)
 	if err != nil {
 		return nil, err
 	}
 
-	privateKey, err := x509.ParseECPrivateKey(privateKeyBytes)
+	privateKey, err := crypto.ToECDSA(privateKeyBytes)
 	if err != nil {
 		return nil, err
 	}
 
 	return privateKey, nil
-
 }
 
 func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {
