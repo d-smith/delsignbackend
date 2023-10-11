@@ -2,7 +2,8 @@ package users
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"delsignbackend/helpers"
@@ -86,12 +87,13 @@ func validateKeyReg(ctx context.Context, kr *KeyReg) error {
 
 	hash := sha256.Sum256([]byte(kr.Email))
 	decodedSig, _ := hex.DecodeString(kr.SignatureForRegistration)
-	valid := ecdsa.VerifyASN1(publicKey.(*ecdsa.PublicKey), hash[:], decodedSig)
-	if !valid {
-		return errors.New("Invalid signature")
-	}
+	return rsa.VerifyPKCS1v15(publicKey.(*rsa.PublicKey), crypto.SHA256, hash[:], decodedSig)
+	//valid := ecdsa.VerifyASN1(publicKey.(*ecdsa.PublicKey), hash[:], decodedSig)
+	//if !valid {
+	//	return errors.New("Invalid signature")
+	//}
 
-	return nil
+	//return nil
 }
 
 type UserInfo struct {

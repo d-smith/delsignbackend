@@ -2,7 +2,8 @@ package chain
 
 import (
 	"context"
-	"crypto/ecdsa"
+	"crypto"
+	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"delsignbackend/users"
@@ -203,10 +204,15 @@ func validateSignature(email string, payload *SendPayload) (bool, error) {
 
 	pubkey, err := x509.ParsePKIXPublicKey(pubkeyBytes)
 
-	valid := ecdsa.VerifyASN1(pubkey.(*ecdsa.PublicKey), hash[:], decodedSig)
-	if !valid {
-		log.Println("Invalid signature")
+	//valid := ecdsa.VerifyASN1(pubkey.(*ecdsa.PublicKey), hash[:], decodedSig)
+	//if !valid {
+	//	log.Println("Invalid signature")
+	//}
+	err = rsa.VerifyPKCS1v15(pubkey.(*rsa.PublicKey), crypto.SHA256, hash[:], decodedSig)
+	if err != nil {
+		log.Println("Invalid signature", err.Error())
+		return false, err
 	}
 
-	return valid, nil
+	return true, nil
 }
