@@ -1,0 +1,5 @@
+Captured: 2026-10-23T16:43:04Z
+Commit: e715750 (feature/refresh)
+go version go1.26.5 linux/amd64
+govulncheck: golang.org/x/vuln v1.9.0
+go.mod go directive: go 1.20

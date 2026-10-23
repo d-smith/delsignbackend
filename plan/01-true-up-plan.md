@@ -114,7 +114,7 @@ All decisions were agreed on 2026-10-23 (see the decision log in §8).
 | D9 | Ethereum transactions | Upgrade to go-ethereum v1.17.x. Build EIP-1559 `DynamicFeeTx` transactions, sign with `types.LatestSignerForChainID`, and get the fee cap and tip from the node. | Agreed |
 | D10 | Local dev chain | **Move from Ganache to Anvil** (Foundry); Ganache was sunset in 2023. Anvil serves RPC on `:8545`, uses chain ID **31337** (the default for `DELSIGN_CHAIN_ID`), supports EIP-1559, and starts with pre-funded, well-known dev accounts. Those accounts are imported with `import-key` for funding (T3.2). | Agreed |
 | D11 | Testing | Use the standard `testing` package and `httptest` with in-memory SQLite. Put the Ethereum client behind a small interface so `SendEth` can be tested without a node. No mocking framework. | Agreed |
-| D12 | Toolchain | Set `go 1.26` and `toolchain go1.26.10` (or later) in `go.mod`. | Agreed |
+| D12 | Toolchain | Go 1.27, the current major release. Set `go 1.27` and `toolchain go1.27.3` in `go.mod`. With `GOTOOLCHAIN=auto` (the default), the `go` command picks up this toolchain even if an older Go is installed. Developer machines should still match it, so the editor and gopls use the same version as the build. | Agreed |
 
 ## 6. Execution approach
 
@@ -139,11 +139,17 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 0 — Baseline
 
-- [ ] **T0.1 Record baseline.** Save the current `govulncheck` summary and `go list -m -u all`
+- [x] **T0.1 Record baseline.** Save the current `govulncheck` summary and `go list -m -u all`
   output to `plan/baseline/`. *Accept:* files present and ready for the user to commit.
-- [ ] **T0.2 Toolchain + tidy.** Apply D12 and run `go mod tidy`, so that direct dependencies
-  are no longer marked `// indirect`. *Accept:* builds; standard library vulnerabilities from
-  the old toolchain are gone.
+  *Done:* baseline at `e715750`, Go 1.26.5, govulncheck v1.9.0 (pinned for T5.3).
+  Vulnerabilities: 24 called / 7 imported / 27 required. 136 of 166 modules have updates.
+  See `plan/baseline/README.md`.
+- [ ] **T0.2 Toolchain + tidy.** Apply D12: set `go 1.27` and `toolchain go1.27.3`, then
+  run `go mod tidy`, so that direct dependencies are no longer marked `// indirect`.
+  *Prerequisite:* the user installs Go 1.27.3 on their system (`/usr/local/go`).
+  *Accept:* `go version` in the repo reports go1.27.3; build and vet pass; govulncheck
+  v1.9.0 shows no standard library vulnerabilities that our code reaches (the baseline
+  had 16). Any new ones on 1.27.3 are listed here with a reason.
 
 ### Phase 1 — Foundations for change
 
@@ -252,3 +258,5 @@ _No open questions._
 - 2026-10-23: Planning convention: `plan/` holds one file per plan (`NN-<name>.md`), plus a
   `roadmap.md` that is kept up to date.
 - 2026-10-23: Plan agreed. The user does all git commits.
+- 2026-10-23: D12 changed from Go 1.26.10 to Go 1.27.3. Go 1.27 is the current major
+  release, and 1.26 loses support when 1.28 ships. The baseline (Go 1.26.5) stays as recorded.
