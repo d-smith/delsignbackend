@@ -144,12 +144,17 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   *Done:* baseline at `e715750`, Go 1.26.5, govulncheck v1.9.0 (pinned for T5.3).
   Vulnerabilities: 24 called / 7 imported / 27 required. 136 of 166 modules have updates.
   See `plan/baseline/README.md`.
-- [ ] **T0.2 Toolchain + tidy.** Apply D12: set `go 1.27` and `toolchain go1.27.3`, then
+- [x] **T0.2 Toolchain + tidy.** Apply D12: set `go 1.27` and `toolchain go1.27.3`, then
   run `go mod tidy`, so that direct dependencies are no longer marked `// indirect`.
   *Prerequisite:* the user installs Go 1.27.3 on their system (`/usr/local/go`).
   *Accept:* `go version` in the repo reports go1.27.3; build and vet pass; govulncheck
   v1.9.0 shows no standard library vulnerabilities that our code reaches (the baseline
   had 16). Any new ones on 1.27.3 are listed here with a reason.
+  *Done:* go-ethereum, golang-jwt/jwt, gddo and go-sqlite3 moved to the direct `require` block.
+  No module versions changed (checked against the baseline). `go.sum` gained 119 lines that
+  had been missing. Vulnerabilities: 24 → **8 called** (0 standard library, 0 new on 1.27.3),
+  7 → 2 imported, 27 → 26 required. The 8 left are go-ethereum ×5 and gnark-crypto (T2.4),
+  golang-jwt v3 (T2.1), and gorilla/websocket (T2.4/T2.5).
 
 ### Phase 1 — Foundations for change
 
