@@ -61,13 +61,7 @@ type WalletsDB struct {
 
 var WalletsDatabase *WalletsDB
 
-func NewWalletsDB(dbPath string) *WalletsDB {
-
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func NewWalletsDB(db *sql.DB) *WalletsDB {
 	return &WalletsDB{db: db}
 }
 
@@ -82,10 +76,6 @@ func (wdb *WalletsDB) CreateWallet(email string) (int, error) {
 		return 0, err
 	}
 	return int(id), nil
-}
-
-func (wdb *WalletsDB) Close() {
-	wdb.db.Close()
 }
 
 func (wdb *WalletsDB) UserOwnsWallet(email string, walletId int) bool {

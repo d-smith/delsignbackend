@@ -25,11 +25,9 @@ go run .
 
 For simple PoC work this version uses a sqlite3 database.
 
-To create the database:
-
-```bash
-sqlite3 delsign.db < db/schema.sql
-```
+The server creates the database file (`DELSIGN_DB_PATH`) and its tables on startup if they
+don't exist, using `db/schema.sql`, which is embedded in the binary. Existing tables and data
+are left as they are.
 
 To interact with the database:
 

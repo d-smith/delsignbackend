@@ -167,9 +167,16 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   1337 until T1.5; `DELSIGN_KEY_ENC_KEY` is deferred to T3.2. Unit tests in `config/`. Verified:
   missing or short secret → exit 1; token signed with the configured secret → 200, with the old
   `"secret"` → 403. Added a Configuration section to the readme.
-- [ ] **T1.2 Shared DB + embedded schema (D2).** One `*sql.DB`, store constructors that take
+- [x] **T1.2 Shared DB + embedded schema (D2).** One `*sql.DB`, store constructors that take
   it, and the schema applied at startup. Also fix the `private_key test` typo in the schema.
   *Accept:* the server starts against an empty file and creates the tables.
+  *Done:* new `db` package, where `db.Open(path)` opens the connection and applies the
+  embedded `schema.sql`. Store constructors take the `*sql.DB`, and the per-store `Close`/`ShutdownDB`
+  methods are gone (`main` closes the shared handle). Tests cover table creation and
+  reopening without losing data. Verified against an empty file (tables created, wallet
+  create/list work) and a copy of an existing dev DB (data kept). Readme no longer says to
+  run `schema.sql` by hand. The typo fix only affects new DBs, because `CREATE TABLE IF NOT EXISTS`
+  doesn't alter existing tables; that's fine, since D3 discards old DBs anyway.
 - [ ] **T1.3 Typed context key.** Add `middleware.EmailFromContext`, and use it everywhere
   `ctx.Value("email").(string)` appears now. *Accept:* a JWT with no `email` claim gets a 403, not a panic.
 - [ ] **T1.4 Test harness (D11).** Helpers for an in-memory DB, test JWTs and test RSA keys.
@@ -274,3 +281,8 @@ _No open questions._
 - 2026-10-23 (T1.1): D1 refined. `DELSIGN_JWT_SECRET` must be at least 32 bytes, so the
   external token issuer has to change its secret from `"secret"` to match.
   `DELSIGN_KEY_ENC_KEY` is added in T3.2, where it is first used.
+- 2026-10-26 (T1.2): SQLite foreign keys are declared in the schema but **not enforced**
+  (`PRAGMA foreign_keys` is off by default), so wallets can be created for emails with no
+  `users` row. Left as is because turning it on changes behaviour. → roadmap candidate.
+- 2026-10-26 (T1.2): Note for T1.4: `:memory:` SQLite gives each pooled connection its own
+  empty database. Test helpers must use a temp file or `SetMaxOpenConns(1)`.

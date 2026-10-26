@@ -3,8 +3,6 @@ package users
 import (
 	"database/sql"
 	"log"
-
-	"github.com/mattn/go-sqlite3"
 )
 
 type UserDB struct {
@@ -13,21 +11,8 @@ type UserDB struct {
 
 var UserDatabase *UserDB
 
-func NewUserDB(dbPath string) *UserDB {
-	log.Println("Initializing DB...")
-	v, _, _ := sqlite3.Version()
-	log.Println("Opening sqlite with driver version", v)
-
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func NewUserDB(db *sql.DB) *UserDB {
 	return &UserDB{db: db}
-}
-
-func (udb *UserDB) ShutdownDB() {
-	udb.db.Close()
 }
 
 func (udb *UserDB) NewUserReg(keyreg *KeyReg) error {

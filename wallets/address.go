@@ -23,20 +23,11 @@ type AddressDB struct {
 	db *sql.DB
 }
 
-func NewAddressDB(dbPath string) *AddressDB {
-	db, err := sql.Open("sqlite3", dbPath)
-	if err != nil {
-		log.Fatal(err)
-	}
-
+func NewAddressDB(db *sql.DB) *AddressDB {
 	return &AddressDB{db: db}
 }
 
 var AddressDatabase *AddressDB
-
-func (adb *AddressDB) Close() {
-	adb.db.Close()
-}
 
 func (adb *AddressDB) CreateAddressForWallet(walletId int, eoa string, privateKey string, publicKey string) error {
 	_, err := adb.db.Exec("INSERT INTO addresses(wallet_id,address,private_key,public_key) VALUES(?,?,?,?);", walletId, eoa, privateKey, publicKey)

@@ -15,7 +15,7 @@ create table if not exists addresses (
     id integer primary key autoincrement,
     wallet_id integer not null,
     address text not null,
-    private_key test not null,
+    private_key text not null,
     public_key text not null,
     created_at datetime default current_timestamp,
     foreign key (wallet_id) references wallets (id)

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"database/sql"
 	"delsignbackend/chain"
 	"delsignbackend/config"
+	"delsignbackend/db"
 	"delsignbackend/middleware"
 	"delsignbackend/users"
 	"delsignbackend/wallets"
@@ -51,15 +53,13 @@ func RunServer(cfg *config.Config) {
 
 }
 
-func registerShutdownHooks() {
+func registerShutdownHooks(database *sql.DB) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		for _ = range c {
 			log.Println("Shutting down DB...")
-			users.UserDatabase.ShutdownDB()
-			wallets.WalletsDatabase.Close()
-			wallets.AddressDatabase.Close()
+			database.Close()
 
 			log.Println("Shutting down server...")
 			os.Exit(0)
@@ -76,13 +76,17 @@ func main() {
 	}
 
 	log.Println("Initialize db connection...")
-	users.UserDatabase = users.NewUserDB(cfg.DBPath)
-	wallets.WalletsDatabase = wallets.NewWalletsDB(cfg.DBPath)
-	wallets.AddressDatabase = wallets.NewAddressDB(cfg.DBPath)
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		log.Fatalln("Unable to open database:", err)
+	}
+	users.UserDatabase = users.NewUserDB(database)
+	wallets.WalletsDatabase = wallets.NewWalletsDB(database)
+	wallets.AddressDatabase = wallets.NewAddressDB(database)
 	chain.EthChain = chain.NewEthereumChain(cfg.RPCURL, cfg.ChainID)
 
 	log.Println("register shutdown hooks...")
-	registerShutdownHooks()
+	registerShutdownHooks(database)
 
 	log.Println("Start server...")
 	RunServer(cfg)
