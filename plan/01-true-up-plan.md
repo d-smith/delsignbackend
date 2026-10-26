@@ -303,3 +303,12 @@ _No open questions._
   `users` row. Left as is because turning it on changes behaviour. → roadmap candidate.
 - 2026-10-26 (T1.2): Note for T1.4: `:memory:` SQLite gives each pooled connection its own
   empty database. Test helpers must use a temp file or `SetMaxOpenConns(1)`.
+- 2026-10-26 (T1.5): **T1.5 blocked.** The prebuilt Foundry binaries (`anvil`, `cast`) need
+  glibc ≥ 2.32–2.34; the WSL distro is Ubuntu 20.04 (glibc 2.31). The user chose to upgrade
+  WSL to Ubuntu 24.04 before continuing. Afterwards, check `ldd --version` (≥ 2.39) and run
+  `foundryup` and `anvil --version`, then resume T1.5.
+- 2026-10-26 (T1.5): **Proposed, awaiting confirmation:** make `scripts/smoke.sh` work with
+  any dev node. Fund the test address via `eth_sendTransaction` from one of the node's own
+  unlocked accounts (`eth_accounts[0]`), and read the chain ID with `eth_chainId`, instead of
+  seeding an Anvil private key with raw SQL. That removes the script's dependence on DB
+  internals (it survives T3.2's encryption), and the script also runs on Hardhat or Ganache.
