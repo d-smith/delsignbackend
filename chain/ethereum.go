@@ -6,6 +6,7 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"delsignbackend/middleware"
 	"delsignbackend/users"
 	"delsignbackend/wallets"
 	"encoding/hex"
@@ -125,8 +126,8 @@ func SendEth(rw http.ResponseWriter, r *http.Request) {
 	log.Println("SendEth")
 
 	log.Println("extract email from context")
-	email := r.Context().Value("email").(string)
-	if email == "" {
+	email, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
 		http.Error(rw, "Missing email", 403)
 		return
 	}

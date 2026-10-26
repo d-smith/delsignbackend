@@ -177,10 +177,17 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   create/list work) and a copy of an existing dev DB (data kept). Readme no longer says to
   run `schema.sql` by hand. The typo fix only affects new DBs, because `CREATE TABLE IF NOT EXISTS`
   doesn't alter existing tables; that's fine, since D3 discards old DBs anyway.
-- [ ] **T1.3 Typed context key.** Add `middleware.EmailFromContext`, and use it everywhere
+- [x] **T1.3 Typed context key.** Add `middleware.EmailFromContext`, and use it everywhere
   `ctx.Value("email").(string)` appears now. *Accept:* a JWT with no `email` claim gets a 403, not a panic.
+  *Done:* the middleware now requires a non-empty string `email` claim (403 otherwise) and
+  stores it under an unexported typed key. All six lookups (5 handlers + `validateKeyReg`) use
+  `EmailFromContext`. Before: a token with no `email` claim → panic → 500. After: 403 on every
+  protected endpoint, with no panics. `middleware/authcheck_test.go` covers 7 rejection cases,
+  the valid token path, and a check that a string-keyed context value can't stand in for the
+  typed key.
 - [ ] **T1.4 Test harness (D11).** Helpers for an in-memory DB, test JWTs and test RSA keys.
-  Add first tests for the middleware and for the success and failure paths of `validateKeyReg`.
+  Add first tests for the success and failure paths of `validateKeyReg`. The middleware tests
+  were added in T1.3; move their token helper into the shared harness.
   *Accept:* `go test ./...` runs meaningful tests.
 - [ ] **T1.5 Switch the dev chain to Anvil (D10).** Set the default `DELSIGN_CHAIN_ID` to
   31337 and add a `scripts/smoke.sh` that runs register key → create wallet → create address

@@ -2,6 +2,7 @@ package wallets
 
 import (
 	"database/sql"
+	"delsignbackend/middleware"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -13,8 +14,8 @@ type WalletInfo struct {
 
 func WalletCreate(rw http.ResponseWriter, r *http.Request) {
 	// Get the user email from the jwt claims
-	email := r.Context().Value("email").(string)
-	if email == "" {
+	email, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
 		http.Error(rw, "Missing email", 403)
 		return
 	}
@@ -37,8 +38,8 @@ func WalletCreate(rw http.ResponseWriter, r *http.Request) {
 
 func GetWallets(rw http.ResponseWriter, r *http.Request) {
 	// Get the user email from the jwt claims
-	email := r.Context().Value("email").(string)
-	if email == "" {
+	email, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
 		http.Error(rw, "Missing email", 403)
 		return
 	}
@@ -147,8 +148,8 @@ func (wdb *WalletsDB) WalletsAndAddressesForUser(email string) ([]WalletAddressP
 
 func GetWalletAndAddressesForUser(rw http.ResponseWriter, r *http.Request) {
 	// Get the user email from the jwt claims
-	email := r.Context().Value("email").(string)
-	if email == "" {
+	email, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
 		http.Error(rw, "Missing email", 403)
 		return
 	}

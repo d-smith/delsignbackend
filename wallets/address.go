@@ -3,6 +3,7 @@ package wallets
 import (
 	"crypto/ecdsa"
 	"database/sql"
+	"delsignbackend/middleware"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -97,8 +98,8 @@ type EOA struct {
 
 func CreateAddressForWallet(rw http.ResponseWriter, r *http.Request) {
 	// Get the user email from the jwt claims
-	email := r.Context().Value("email").(string)
-	if email == "" {
+	email, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
 		http.Error(rw, "Missing email", 403)
 		return
 	}

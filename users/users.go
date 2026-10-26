@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"delsignbackend/helpers"
+	"delsignbackend/middleware"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -68,7 +69,10 @@ func validateKeyReg(ctx context.Context, kr *KeyReg) error {
 
 	// Check email used for registration is the same as the value in the
 	// JWT claims
-	email := ctx.Value("email").(string)
+	email, ok := middleware.EmailFromContext(ctx)
+	if !ok {
+		return errors.New("Missing email in token")
+	}
 	log.Println("email from JWT", email)
 	if email != kr.Email {
 		return errors.New("Email mismatch")

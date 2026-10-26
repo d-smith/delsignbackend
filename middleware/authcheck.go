@@ -43,10 +43,24 @@ func authzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.HandlerF
 	}
 
 	log.Println("claimz", claimz)
-	email := (claimz.(jwt.MapClaims))["email"]
-	ctx := r.Context()
-	ctx = context.WithValue(ctx, "email", email)
+	email, ok := (claimz.(jwt.MapClaims))["email"].(string)
+	if !ok || email == "" {
+		http.Error(rw, "Invalid token", 403)
+		return
+	}
+	ctx := context.WithValue(r.Context(), emailKey, email)
 
 	next(rw, r.WithContext(ctx))
 	// do some stuff afters
+}
+
+type contextKey string
+
+const emailKey contextKey = "email"
+
+// EmailFromContext returns the authenticated user's email, as set by the
+// authz middleware. ok is false if there is no email in the context.
+func EmailFromContext(ctx context.Context) (email string, ok bool) {
+	email, ok = ctx.Value(emailKey).(string)
+	return email, ok && email != ""
 }
