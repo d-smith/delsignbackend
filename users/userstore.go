@@ -7,20 +7,18 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-const dbfile string = "delsign.db"
-
 type UserDB struct {
 	db *sql.DB
 }
 
 var UserDatabase *UserDB
 
-func NewUserDB() *UserDB {
+func NewUserDB(dbPath string) *UserDB {
 	log.Println("Initializing DB...")
 	v, _, _ := sqlite3.Version()
 	log.Println("Opening sqlite with driver version", v)
 
-	db, err := sql.Open("sqlite3", dbfile)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}

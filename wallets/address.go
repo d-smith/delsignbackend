@@ -23,8 +23,8 @@ type AddressDB struct {
 	db *sql.DB
 }
 
-func NewAddressDB() *AddressDB {
-	db, err := sql.Open("sqlite3", dbfile)
+func NewAddressDB(dbPath string) *AddressDB {
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}

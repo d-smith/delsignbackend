@@ -2,6 +2,7 @@ package main
 
 import (
 	"delsignbackend/chain"
+	"delsignbackend/config"
 	"delsignbackend/middleware"
 	"delsignbackend/users"
 	"delsignbackend/wallets"
@@ -19,7 +20,7 @@ func authPingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Auth ping")
 }
 
-func RunServer() {
+func RunServer(cfg *config.Config) {
 
 	// Router for unprotected routes
 	r := mux.NewRouter()
@@ -37,13 +38,13 @@ func RunServer() {
 	ar.HandleFunc("/api/v1/wallets/balance/{address}", chain.GetBalance).Methods("GET")
 	ar.HandleFunc("/api/v1/wallets/send", chain.SendEth).Methods("POST")
 
-	an := negroni.New(negroni.HandlerFunc(middleware.AuthzMiddleWare), negroni.Wrap(ar))
+	an := negroni.New(negroni.HandlerFunc(middleware.NewAuthzMiddleWare(cfg.JWTSecret)), negroni.Wrap(ar))
 	r.PathPrefix("/api").Handler(an)
 
 	n := negroni.Classic()
 	n.UseHandler(r)
 
-	err := http.ListenAndServe(":3010", n)
+	err := http.ListenAndServe(":"+cfg.Port, n)
 	if err != nil {
 		log.Fatalln("Error starting server", err)
 	}
@@ -68,15 +69,21 @@ func registerShutdownHooks() {
 
 func main() {
 
+	log.Println("Load configuration...")
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalln("Invalid configuration:", err)
+	}
+
 	log.Println("Initialize db connection...")
-	users.UserDatabase = users.NewUserDB()
-	wallets.WalletsDatabase = wallets.NewWalletsDB()
-	wallets.AddressDatabase = wallets.NewAddressDB()
-	chain.EthChain = chain.NewEthereumChain()
+	users.UserDatabase = users.NewUserDB(cfg.DBPath)
+	wallets.WalletsDatabase = wallets.NewWalletsDB(cfg.DBPath)
+	wallets.AddressDatabase = wallets.NewAddressDB(cfg.DBPath)
+	chain.EthChain = chain.NewEthereumChain(cfg.RPCURL, cfg.ChainID)
 
 	log.Println("register shutdown hooks...")
 	registerShutdownHooks()
 
 	log.Println("Start server...")
-	RunServer()
+	RunServer(cfg)
 }

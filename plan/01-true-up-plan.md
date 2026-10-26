@@ -158,9 +158,15 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 1 — Foundations for change
 
-- [ ] **T1.1 Config package (D1).** Add `config/` and replace the hardcoded constants in
+- [x] **T1.1 Config package (D1).** Add `config/` and replace the hardcoded constants in
   `main.go`, `users/userstore.go`, `wallets/*.go`, `chain/ethereum.go` and the middleware.
   *Accept:* startup fails if `DELSIGN_JWT_SECRET` is missing; no secret literals remain in the source.
+  *Done:* `config.Load()` validates the port, chain ID and secret. The secret must be at least
+  32 bytes (RFC 7518 §3.2). The middleware is now built by `NewAuthzMiddleWare(secret)`, the store
+  constructors take a DB path, and `EthereumChain` holds the chain ID. The chain ID default stays
+  1337 until T1.5; `DELSIGN_KEY_ENC_KEY` is deferred to T3.2. Unit tests in `config/`. Verified:
+  missing or short secret → exit 1; token signed with the configured secret → 200, with the old
+  `"secret"` → 403. Added a Configuration section to the readme.
 - [ ] **T1.2 Shared DB + embedded schema (D2).** One `*sql.DB`, store constructors that take
   it, and the schema applied at startup. Also fix the `private_key test` typo in the schema.
   *Accept:* the server starts against an empty file and creates the tables.
@@ -265,3 +271,6 @@ _No open questions._
 - 2026-10-23: Plan agreed. The user does all git commits.
 - 2026-10-23: D12 changed from Go 1.26.10 to Go 1.27.3. Go 1.27 is the current major
   release, and 1.26 loses support when 1.28 ships. The baseline (Go 1.26.5) stays as recorded.
+- 2026-10-23 (T1.1): D1 refined. `DELSIGN_JWT_SECRET` must be at least 32 bytes, so the
+  external token issuer has to change its secret from `"secret"` to match.
+  `DELSIGN_KEY_ENC_KEY` is added in T3.2, where it is first used.

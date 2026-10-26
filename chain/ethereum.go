@@ -22,23 +22,20 @@ import (
 	"github.com/gorilla/mux"
 )
 
-const RPC_ENDPOINT = "http://localhost:8545"
-
-var CHAIN_ID = big.NewInt(1337)
-
 type EthereumChain struct {
-	client *ethclient.Client
+	client  *ethclient.Client
+	chainID *big.Int
 }
 
 var EthChain *EthereumChain
 
-func NewEthereumChain() *EthereumChain {
-	client, err := ethclient.Dial(RPC_ENDPOINT)
+func NewEthereumChain(rpcURL string, chainID *big.Int) *EthereumChain {
+	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return &EthereumChain{client: client}
+	return &EthereumChain{client: client, chainID: chainID}
 }
 
 func (eth *EthereumChain) GetBalance(address string) (*big.Int, error) {
@@ -78,7 +75,7 @@ func (eth *EthereumChain) SendEth(email string, source string, destination strin
 	tx := types.NewTransaction(nonce, common.HexToAddress(destination), amount, gasLimit, gasPrice, data)
 
 	// Sign the transaction
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(CHAIN_ID), privateKey)
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(eth.chainID), privateKey)
 	if err != nil {
 		log.Println("Unable to sign transaction", err.Error())
 		return "", err

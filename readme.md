@@ -3,6 +3,24 @@
 Simple backend for delegated signing example. 
 
 
+## Configuration
+
+The server reads its settings from environment variables at startup:
+
+| Variable | Default | Notes |
+|---|---|---|
+| `DELSIGN_JWT_SECRET` | none, **required** | HMAC secret for validating JWTs. Must be at least 32 bytes and match the secret your token issuer uses. |
+| `DELSIGN_PORT` | `3010` | HTTP listen port |
+| `DELSIGN_DB_PATH` | `delsign.db` | SQLite database file |
+| `DELSIGN_RPC_URL` | `http://localhost:8545` | Ethereum JSON-RPC endpoint |
+| `DELSIGN_CHAIN_ID` | `1337` | Chain ID used when signing transactions |
+
+```bash
+export DELSIGN_JWT_SECRET=$(openssl rand -hex 32)
+go run .
+```
+
+
 ## Sqlite3 DB  
 
 For simple PoC work this version uses a sqlite3 database.

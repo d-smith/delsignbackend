@@ -7,8 +7,6 @@ import (
 	"net/http"
 )
 
-const dbfile string = "delsign.db"
-
 type WalletInfo struct {
 	Id int `json:"id"`
 }
@@ -63,9 +61,9 @@ type WalletsDB struct {
 
 var WalletsDatabase *WalletsDB
 
-func NewWalletsDB() *WalletsDB {
+func NewWalletsDB(dbPath string) *WalletsDB {
 
-	db, err := sql.Open("sqlite3", dbfile)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
