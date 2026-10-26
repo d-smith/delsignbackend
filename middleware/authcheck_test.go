@@ -2,23 +2,13 @@ package middleware
 
 import (
 	"context"
+	"delsignbackend/testutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/golang-jwt/jwt"
 )
-
-const testSecret = "0123456789abcdef0123456789abcdef"
-
-func signToken(t *testing.T, secret string, claims jwt.MapClaims) string {
-	t.Helper()
-	tok, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(secret))
-	if err != nil {
-		t.Fatalf("sign token: %v", err)
-	}
-	return tok
-}
 
 // runAuthz sends a request with the given Authorization header through the
 // middleware and reports the status code and the email seen by the next handler.
@@ -30,7 +20,7 @@ func runAuthz(t *testing.T, authHeader string) (status int, email string, called
 	}
 	rec := httptest.NewRecorder()
 
-	NewAuthzMiddleWare(testSecret)(rec, req, func(w http.ResponseWriter, r *http.Request) {
+	NewAuthzMiddleWare(testutil.JWTSecret)(rec, req, func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		email, _ = EmailFromContext(r.Context())
 	})
@@ -45,10 +35,10 @@ func TestAuthzRejects(t *testing.T) {
 		{"missing header", ""},
 		{"not bearer", "Basic abc"},
 		{"garbage token", "Bearer not-a-jwt"},
-		{"wrong secret", "Bearer " + signToken(t, "another-secret-another-secret-xx", jwt.MapClaims{"email": "a@example.com"})},
-		{"no email claim", "Bearer " + signToken(t, testSecret, jwt.MapClaims{"sub": "a"})},
-		{"non-string email", "Bearer " + signToken(t, testSecret, jwt.MapClaims{"email": 42})},
-		{"empty email", "Bearer " + signToken(t, testSecret, jwt.MapClaims{"email": ""})},
+		{"wrong secret", "Bearer " + testutil.SignToken(t, "another-secret-another-secret-xx", jwt.MapClaims{"email": "a@example.com"})},
+		{"no email claim", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"sub": "a"})},
+		{"non-string email", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": 42})},
+		{"empty email", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": ""})},
 	}
 
 	for _, tt := range tests {
@@ -65,7 +55,7 @@ func TestAuthzRejects(t *testing.T) {
 }
 
 func TestAuthzAcceptsValidToken(t *testing.T) {
-	status, email, called := runAuthz(t, "Bearer "+signToken(t, testSecret, jwt.MapClaims{"email": "a@example.com"}))
+	status, email, called := runAuthz(t, "Bearer "+testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": "a@example.com"}))
 	if !called || status != http.StatusOK {
 		t.Fatalf("called = %v, status = %d; want next handler called with 200", called, status)
 	}

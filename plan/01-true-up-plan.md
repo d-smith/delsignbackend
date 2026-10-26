@@ -185,10 +185,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   protected endpoint, with no panics. `middleware/authcheck_test.go` covers 7 rejection cases,
   the valid token path, and a check that a string-keyed context value can't stand in for the
   typed key.
-- [ ] **T1.4 Test harness (D11).** Helpers for an in-memory DB, test JWTs and test RSA keys.
+- [x] **T1.4 Test harness (D11).** Helpers for an in-memory DB, test JWTs and test RSA keys.
   Add first tests for the success and failure paths of `validateKeyReg`. The middleware tests
   were added in T1.3; move their token helper into the shared harness.
   *Accept:* `go test ./...` runs meaningful tests.
+  *Done:* new `testutil` package with `NewDB` (a temp-file DB, not `:memory:`; see §8),
+  `SignToken`, `NewRSAKey` (hex PKIX DER, as the API expects), `SignRSA` (PKCS #1 v1.5 /
+  SHA-256, hex), and `JWTSecret`. Added `middleware.WithEmail`, which the middleware now uses
+  and handler tests use to fake an authenticated request. The middleware tests use the shared
+  helpers. `users/users_test.go`: the valid registration, 10 rejection cases, and `KeyRegCreate`
+  end to end against a real DB (stored on success, 400 and nothing stored on a bad signature).
+  One test is skipped: a non-RSA public key panics. Confirmed by running it without the
+  skip; fixed in T4.1. The `chain` and `wallets` packages get tests in later tasks (D11's fake
+  Ethereum client lands with T4.4).
 - [ ] **T1.5 Switch the dev chain to Anvil (D10).** Set the default `DELSIGN_CHAIN_ID` to
   31337 and add a `scripts/smoke.sh` that runs register key → create wallet → create address
   → fund it from an Anvil account → send → check the balance. Until T3.2 lands, funding uses
@@ -240,6 +249,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   `SuggestGasPrice` error, the public-key parse in `chain.validateSignature`, and the
   signature hex decode in `validateKeyReg`. Check the public-key types (assert with `ok`).
   *Accept:* a test for each malformed input gets a 4xx response, not a 500 or a panic.
+  Remove the skip on `TestValidateKeyRegRejectsNonRSAKey` (added in T1.4; currently panics).
 - [ ] **T4.2 Input validation.** Check addresses with `common.IsHexAddress` and normalize
   them to checksum form before DB lookups; require `amount` > 0; decode the send body with
   `DecodeJSONBody`. *Accept:* a lowercase source address that the user owns is accepted;

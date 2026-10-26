@@ -48,15 +48,18 @@ func authzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.HandlerF
 		http.Error(rw, "Invalid token", 403)
 		return
 	}
-	ctx := context.WithValue(r.Context(), emailKey, email)
-
-	next(rw, r.WithContext(ctx))
+	next(rw, r.WithContext(WithEmail(r.Context(), email)))
 	// do some stuff afters
 }
 
 type contextKey string
 
 const emailKey contextKey = "email"
+
+// WithEmail returns a copy of ctx carrying the authenticated user's email.
+func WithEmail(ctx context.Context, email string) context.Context {
+	return context.WithValue(ctx, emailKey, email)
+}
 
 // EmailFromContext returns the authenticated user's email, as set by the
 // authz middleware. ok is false if there is no email in the context.
