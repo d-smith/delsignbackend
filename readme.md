@@ -13,12 +13,49 @@ The server reads its settings from environment variables at startup:
 | `DELSIGN_PORT` | `3010` | HTTP listen port |
 | `DELSIGN_DB_PATH` | `delsign.db` | SQLite database file |
 | `DELSIGN_RPC_URL` | `http://localhost:8545` | Ethereum JSON-RPC endpoint |
-| `DELSIGN_CHAIN_ID` | `1337` | Chain ID used when signing transactions |
+| `DELSIGN_CHAIN_ID` | `31337` | Chain ID used when signing transactions |
 
 ```bash
 export DELSIGN_JWT_SECRET=$(openssl rand -hex 32)
 go run .
 ```
+
+
+## Dev chain
+
+Local development uses [Anvil](https://getfoundry.sh/anvil/overview) from Foundry. Install
+Foundry with `curl -L https://foundry.paradigm.xyz | bash`, then `foundryup`. The prebuilt
+binaries need glibc 2.32 or newer (Ubuntu 22.04+).
+
+```bash
+anvil
+```
+
+Anvil serves JSON-RPC on `http://localhost:8545` with chain ID 31337, which match the
+defaults above. It starts with ten unlocked, pre-funded dev accounts. To fund an address
+the server created, send from one of them:
+
+```bash
+cast send --unlocked --from 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 <address> --value 1ether
+```
+
+Anvil's state is in memory, so restarting it resets all balances.
+
+
+## Smoke test
+
+`scripts/smoke.sh` runs the main flow end to end against a running dev node: it builds and
+starts the server on a scratch database, registers an RSA key, creates a wallet with two
+addresses, funds one from the node's first account, sends ETH to the other through the API,
+and checks the balance. It needs `go`, `curl`, `jq` and `openssl`.
+
+```bash
+anvil &
+scripts/smoke.sh
+```
+
+`SMOKE_RPC_URL` (default `http://localhost:8545`) and `SMOKE_PORT` (default `3099`) override
+the node and server port; `SMOKE_KEEP=1` keeps the temp directory with the DB and server log.
 
 
 ## Sqlite3 DB  
@@ -35,15 +72,7 @@ To interact with the database:
 sqlite3 delsign.db
 ```
 
-Some useful SQL:
-
-First, seed a wallet with a preseeded ganache account:
-
-```
-insert into addresses(wallet_id, address, private_key, public_key) values(104,'0x73dA1eD554De26C467d97ADE090af6d52851745E','0xf9832eeac47db42efeb2eca01e6479bfde00fda8fdd0624d45efd0e4b9ddcd3b','0x04155e7dc15dddd66be1beb6d735d03e65290642450ed2b38f676aa4943c19c0f35da28d7e7198fceeea2367f67c75b608077f63bbf8b9376f192269e602830278')
-```
-
-And in the absence of an address book, grab other wallet addresses for the current user:
+In the absence of an address book, this query lists other wallet addresses for the current user:
 
 ``` 
 select address from addresses where wallet_id in (select id from wallets where email='doug.smith.mail@gmail.com')

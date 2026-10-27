@@ -45,7 +45,7 @@ func load(getenv func(string) string) (*Config, error) {
 		return nil, fmt.Errorf("DELSIGN_PORT must be a port number, got %q", cfg.Port)
 	}
 
-	chainID := withDefault("DELSIGN_CHAIN_ID", "1337")
+	chainID := withDefault("DELSIGN_CHAIN_ID", "31337")
 	id, ok := new(big.Int).SetString(chainID, 10)
 	if !ok || id.Sign() <= 0 {
 		return nil, fmt.Errorf("DELSIGN_CHAIN_ID must be a positive integer, got %q", chainID)

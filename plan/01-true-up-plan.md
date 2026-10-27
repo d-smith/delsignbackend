@@ -59,7 +59,7 @@ exist to keep that property true.
                 │              │                   │
                 └──── SQLite delsign.db ◄──────────┤ (3 separate *sql.DB handles)
                                                    │
-                                     ethclient ──► Ganache :8545 (chain 1337)
+                                     ethclient ──► Anvil :8545 (chain 31337)
 ```
 
 Every package has a global singleton (`users.UserDatabase`, `wallets.WalletsDatabase`,
@@ -112,7 +112,7 @@ All decisions were agreed on 2026-10-23 (see the decision log in §8).
 | D7 | JWT library | `golang-jwt/jwt/v5` with `WithValidMethods(["HS256"])`. The `exp` claim is required. | Agreed |
 | D8 | HTTP stack | **Standard library only.** Remove both gorilla/mux and negroni. Routes use the `http.ServeMux` method and wildcard patterns added in Go 1.22 (`"GET /api/v1/wallets/balance/{address}"`), and handlers read path values with `r.PathValue`. Middleware is plain `func(http.Handler) http.Handler`: logging, panic recovery, and auth, which wraps only the protected routes. One mux, so the two-router setup goes away. Run the server as `http.Server` with timeouts, and shut down gracefully with `signal.NotifyContext` + `Shutdown`. | Agreed |
 | D9 | Ethereum transactions | Upgrade to go-ethereum v1.17.x. Build EIP-1559 `DynamicFeeTx` transactions, sign with `types.LatestSignerForChainID`, and get the fee cap and tip from the node. | Agreed |
-| D10 | Local dev chain | **Move from Ganache to Anvil** (Foundry); Ganache was sunset in 2023. Anvil serves RPC on `:8545`, uses chain ID **31337** (the default for `DELSIGN_CHAIN_ID`), supports EIP-1559, and starts with pre-funded, well-known dev accounts. Those accounts are imported with `import-key` for funding (T3.2). | Agreed |
+| D10 | Local dev chain | **Move from Ganache to Anvil** (Foundry); Ganache was sunset in 2023. Anvil serves RPC on `:8545`, uses chain ID **31337** (the default for `DELSIGN_CHAIN_ID`), supports EIP-1559, and starts with pre-funded, unlocked dev accounts. The smoke script funds test addresses from them with `eth_sendTransaction` (T1.5). | Agreed |
 | D11 | Testing | Use the standard `testing` package and `httptest` with in-memory SQLite. Put the Ethereum client behind a small interface so `SendEth` can be tested without a node. No mocking framework. | Agreed |
 | D12 | Toolchain | Go 1.27, the current major release. Set `go 1.27` and `toolchain go1.27.3` in `go.mod`. With `GOTOOLCHAIN=auto` (the default), the `go` command picks up this toolchain even if an older Go is installed. Developer machines should still match it, so the editor and gopls use the same version as the build. | Agreed |
 
@@ -198,12 +198,23 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   One test is skipped: a non-RSA public key panics. Confirmed by running it without the
   skip; fixed in T4.1. The `chain` and `wallets` packages get tests in later tasks (D11's fake
   Ethereum client lands with T4.4).
-- [ ] **T1.5 Switch the dev chain to Anvil (D10).** Set the default `DELSIGN_CHAIN_ID` to
+- [x] **T1.5 Switch the dev chain to Anvil (D10).** Set the default `DELSIGN_CHAIN_ID` to
   31337 and add a `scripts/smoke.sh` that runs register key → create wallet → create address
-  → fund it from an Anvil account → send → check the balance. Until T3.2 lands, funding uses
-  the raw-SQL seed with an Anvil key. Update the readme's dev chain instructions.
+  → fund it from an Anvil account → send → check the balance. Funding uses the node's
+  unlocked account (see §8), not a raw-SQL seed. Update the readme's dev chain instructions.
   *Accept:* the smoke script passes against `anvil` with the code still on its legacy
   transaction type. Later tasks reuse this script as the "manual smoke test" gate.
+  *Done:* default chain ID 31337; the config override test now uses 1337, so it still
+  differs from the default. `scripts/smoke.sh` builds the server, starts it on a temp DB
+  (port 3099, `SMOKE_PORT`), with a random JWT secret and the chain ID read from the node.
+  It mints an HS256 token and an RSA key with `openssl`, then runs keyreg → wallet → two
+  addresses → fund source with 1 ETH from `eth_accounts[0]` → send 0.1 ETH through the API
+  → wait for receipts → dest balance is exactly 0.1 ETH. It needs only `go`, `curl`, `jq`,
+  `openssl`. Passed on anvil 1.8.6 (twice on the same chain, and on `--chain-id 1337`); the
+  send was a type `0x0` (legacy) transaction. Fails cleanly when the node is down or the
+  port is taken. Readme: new Dev chain and Smoke test sections; the Ganache raw-SQL seed is
+  gone (its key isn't funded on Anvil, and T3.2 would break it), replaced by a
+  `cast send --unlocked` funding example.
 
 ### Phase 2 — Dependency true-up
 
@@ -230,9 +241,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   (`wallets/address.go`), the auth header (`middleware/authcheck.go`), the claims, and the
   full key-registration struct. *Accept:* a grep for these log calls finds nothing.
 - [ ] **T3.2 Encrypt private keys at rest (D3).** Encrypt and decrypt in `AddressDB`,
-  and add the `import-key` subcommand. Update the readme's seeding instructions to use it.
+  and add the `import-key` subcommand. Document it in the readme (the raw-SQL seed was removed in T1.5).
   *Accept:* new rows start with `enc:v1:`; reading a plaintext row returns an error; an Anvil
-  account imported with `import-key` can send (smoke script updated to use it); tests round-trip a key through encryption and
+  account imported with `import-key` can send; the smoke script still passes; tests round-trip a key through encryption and
   show that a wrong encryption key fails.
 - [ ] **T3.3 Key rotation needs the current key (D5).** *Accept:* tests show the first
   registration succeeds, a replacement without a current-key signature fails (403), and a
@@ -307,8 +318,9 @@ _No open questions._
   glibc ≥ 2.32–2.34; the WSL distro is Ubuntu 20.04 (glibc 2.31). The user chose to upgrade
   WSL to Ubuntu 24.04 before continuing. Afterwards, check `ldd --version` (≥ 2.39) and run
   `foundryup` and `anvil --version`, then resume T1.5.
-- 2026-10-26 (T1.5): **Proposed, awaiting confirmation:** make `scripts/smoke.sh` work with
+- 2026-10-27 (T1.5): **Agreed:** make `scripts/smoke.sh` work with
   any dev node. Fund the test address via `eth_sendTransaction` from one of the node's own
   unlocked accounts (`eth_accounts[0]`), and read the chain ID with `eth_chainId`, instead of
   seeding an Anvil private key with raw SQL. That removes the script's dependence on DB
   internals (it survives T3.2's encryption), and the script also runs on Hardhat or Ganache.
+- 2026-10-27 (T1.5): Blocker cleared: WSL is on Ubuntu 24.04 (glibc 2.39), anvil 1.8.6.

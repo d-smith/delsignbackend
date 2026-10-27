@@ -20,8 +20,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Port != "3010" || cfg.DBPath != "delsign.db" || cfg.RPCURL != "http://localhost:8545" {
 		t.Errorf("unexpected defaults: %+v", cfg)
 	}
-	if cfg.ChainID.Int64() != 1337 {
-		t.Errorf("chain id = %s, want 1337", cfg.ChainID)
+	if cfg.ChainID.Int64() != 31337 {
+		t.Errorf("chain id = %s, want 31337", cfg.ChainID)
 	}
 }
 
@@ -31,13 +31,13 @@ func TestLoadOverrides(t *testing.T) {
 		"DELSIGN_PORT":       "8080",
 		"DELSIGN_DB_PATH":    "/tmp/x.db",
 		"DELSIGN_RPC_URL":    "http://node:8545",
-		"DELSIGN_CHAIN_ID":   "31337",
+		"DELSIGN_CHAIN_ID":   "1337",
 	}))
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
 
-	if cfg.Port != "8080" || cfg.DBPath != "/tmp/x.db" || cfg.RPCURL != "http://node:8545" || cfg.ChainID.Int64() != 31337 {
+	if cfg.Port != "8080" || cfg.DBPath != "/tmp/x.db" || cfg.RPCURL != "http://node:8545" || cfg.ChainID.Int64() != 1337 {
 		t.Errorf("overrides not applied: %+v", cfg)
 	}
 }
