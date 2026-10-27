@@ -6,6 +6,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/x509"
 	"delsignbackend/middleware"
 	"delsignbackend/testutil"
@@ -60,8 +61,6 @@ func TestValidateKeyRegRejects(t *testing.T) {
 }
 
 func TestValidateKeyRegRejectsNonRSAKey(t *testing.T) {
-	t.Skip("known bug, fixed in T4.1: a non-RSA public key panics on the *rsa.PublicKey type assertion")
-
 	ecKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)
@@ -122,5 +121,146 @@ func TestKeyRegCreateRejectsBadSignature(t *testing.T) {
 
 	if _, err := UserDatabase.GetUser(testEmail); err == nil {
 		t.Error("user was stored despite an invalid signature")
+	}
+}
+
+// register stores a first key for testEmail and returns it.
+func register(t *testing.T) (*rsa.PrivateKey, string) {
+	t.Helper()
+	key, pub := testutil.NewRSAKey(t)
+	rec := postKeyReg(t, KeyReg{Email: testEmail, PubKey: pub, SignatureForRegistration: testutil.SignRSA(t, key, testEmail)})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first registration: status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+	return key, pub
+}
+
+func storedKey(t *testing.T) string {
+	t.Helper()
+	user, err := UserDatabase.GetUser(testEmail)
+	if err != nil {
+		t.Fatalf("GetUser: %v", err)
+	}
+	return user.PubKey
+}
+
+func TestKeyRotationNeedsCurrentKey(t *testing.T) {
+	UserDatabase = NewUserDB(testutil.NewDB(t))
+	oldKey, oldPub := register(t)
+	newKey, newPub := testutil.NewRSAKey(t)
+	otherKey, _ := testutil.NewRSAKey(t)
+	sig4reg := testutil.SignRSA(t, newKey, testEmail)
+
+	tests := []struct {
+		name       string
+		sig4rotate string
+	}{
+		{"no rotation signature", ""},
+		{"signed by the new key", testutil.SignRSA(t, newKey, testEmail+newPub)},
+		{"signed by another key", testutil.SignRSA(t, otherKey, testEmail+newPub)},
+		{"current key, wrong message", testutil.SignRSA(t, oldKey, testEmail)},
+		{"current key, approving a different key", testutil.SignRSA(t, oldKey, testEmail+oldPub)},
+		{"not hex", "zz"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := postKeyReg(t, KeyReg{Email: testEmail, PubKey: newPub, SignatureForRegistration: sig4reg, SignatureForRotation: tt.sig4rotate})
+			if rec.Code != http.StatusForbidden {
+				t.Errorf("status = %d (%s), want 403", rec.Code, rec.Body)
+			}
+			if storedKey(t) != oldPub {
+				t.Error("key was replaced")
+			}
+		})
+	}
+}
+
+func TestKeyRotationWithCurrentKey(t *testing.T) {
+	UserDatabase = NewUserDB(testutil.NewDB(t))
+	oldKey, _ := register(t)
+	newKey, newPub := testutil.NewRSAKey(t)
+
+	rec := postKeyReg(t, KeyReg{
+		Email:                    testEmail,
+		PubKey:                   newPub,
+		SignatureForRegistration: testutil.SignRSA(t, newKey, testEmail),
+		SignatureForRotation:     testutil.SignRSA(t, oldKey, testEmail+newPub),
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+	if storedKey(t) != newPub {
+		t.Error("key was not replaced")
+	}
+
+	// The old key can no longer approve a rotation
+	thirdKey, thirdPub := testutil.NewRSAKey(t)
+	rec = postKeyReg(t, KeyReg{
+		Email:                    testEmail,
+		PubKey:                   thirdPub,
+		SignatureForRegistration: testutil.SignRSA(t, thirdKey, testEmail),
+		SignatureForRotation:     testutil.SignRSA(t, oldKey, testEmail+thirdPub),
+	})
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("rotation approved by the retired key: status = %d, want 403", rec.Code)
+	}
+	if storedKey(t) != newPub {
+		t.Error("retired key replaced the current one")
+	}
+}
+
+func TestReplaceKeyDetectsConcurrentChange(t *testing.T) {
+	UserDatabase = NewUserDB(testutil.NewDB(t))
+	_, pub := register(t)
+
+	if err := UserDatabase.ReplaceKey(testEmail, "not-the-current-key", "new"); err != ErrKeyChanged {
+		t.Errorf("ReplaceKey with stale current key: err = %v, want ErrKeyChanged", err)
+	}
+	if err := UserDatabase.NewUserReg(&KeyReg{Email: testEmail, PubKey: "other"}); err != ErrKeyChanged {
+		t.Errorf("second NewUserReg: err = %v, want ErrKeyChanged", err)
+	}
+	if storedKey(t) != pub {
+		t.Error("stored key changed")
+	}
+}
+
+func getUser(t *testing.T, caller, email string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/users/"+email, nil)
+	req.SetPathValue("email", email)
+	req = req.WithContext(middleware.WithEmail(req.Context(), caller))
+	rec := httptest.NewRecorder()
+	GetUser(rec, req)
+	return rec
+}
+
+func TestGetUserOwnRecord(t *testing.T) {
+	UserDatabase = NewUserDB(testutil.NewDB(t))
+	_, pub := register(t)
+
+	rec := getUser(t, testEmail, testEmail)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+	var info UserInfo
+	if err := json.NewDecoder(rec.Body).Decode(&info); err != nil || info.PubKey != pub {
+		t.Errorf("body = %+v (err %v), want own pubkey", info, err)
+	}
+}
+
+func TestGetUserOtherRecordForbidden(t *testing.T) {
+	UserDatabase = NewUserDB(testutil.NewDB(t))
+	register(t)
+
+	if rec := getUser(t, "b@example.com", testEmail); rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d, want 403", rec.Code)
+	}
+}
+
+func TestGetUserNotRegistered(t *testing.T) {
+	UserDatabase = NewUserDB(testutil.NewDB(t))
+
+	if rec := getUser(t, testEmail, testEmail); rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want 404", rec.Code)
 	}
 }

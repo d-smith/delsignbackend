@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"delsignbackend/authz"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -23,7 +22,6 @@ func authzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.Handler,
 	log.Println("check auth header")
 
 	reqToken := r.Header.Get("Authorization")
-	fmt.Println(reqToken)
 	if reqToken == "" {
 		http.Error(rw, "Missing auth header", 403)
 		return
@@ -42,7 +40,6 @@ func authzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.Handler,
 		return
 	}
 
-	log.Println("claimz", claimz)
 	email, ok := claimz["email"].(string)
 	if !ok || email == "" {
 		http.Error(rw, "Invalid token", 403)

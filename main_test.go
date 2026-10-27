@@ -14,29 +14,37 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Every route needs a token.
 var routes = []struct {
 	method, path string
-	protected    bool
 }{
-	{"GET", "/api/v1/users/a@example.com", false},
-	{"GET", "/api/v1/authping", true},
-	{"POST", "/api/v1/keyreg", true},
-	{"POST", "/api/v1/wallets", true},
-	{"GET", "/api/v1/wallets", true},
-	{"POST", "/api/v1/wallets/1/addresses", true},
-	{"GET", "/api/v1/walletctx", true},
-	{"GET", "/api/v1/wallets/balance/0x0000000000000000000000000000000000000001", true},
-	{"POST", "/api/v1/wallets/send", true},
+	{"GET", "/api/v1/users/a@example.com"},
+	{"GET", "/api/v1/authping"},
+	{"POST", "/api/v1/keyreg"},
+	{"POST", "/api/v1/wallets"},
+	{"GET", "/api/v1/wallets"},
+	{"POST", "/api/v1/wallets/1/addresses"},
+	{"GET", "/api/v1/walletctx"},
+	{"GET", "/api/v1/wallets/balance/0x0000000000000000000000000000000000000001"},
+	{"POST", "/api/v1/wallets/send"},
 }
 
-// newTestRouter wires the stores to a fresh DB and the chain to a node that
-// isn't there, so every handler can run without panicking.
+// newTestRouter wires the stores to a fresh DB with a@example.com registered,
+// and the chain to a node that isn't there, so every handler can run without panicking.
 func newTestRouter(t *testing.T) http.Handler {
 	t.Helper()
 	database := testutil.NewDB(t)
 	users.UserDatabase = users.NewUserDB(database)
 	wallets.WalletsDatabase = wallets.NewWalletsDB(database)
-	wallets.AddressDatabase = wallets.NewAddressDB(database)
+	keyCipher, err := wallets.NewKeyCipher(testutil.EncKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wallets.AddressDatabase = wallets.NewAddressDB(database, keyCipher)
+	chain.RequestIdDatabase = chain.NewRequestIdDB(database)
+	if err := users.UserDatabase.NewUserReg(&users.KeyReg{Email: "a@example.com", PubKey: "k"}); err != nil {
+		t.Fatal(err)
+	}
 	chain.EthChain = chain.NewEthereumChain("http://127.0.0.1:1", big.NewInt(31337))
 	return NewRouter(testutil.JWTSecret)
 }
@@ -88,9 +96,6 @@ func TestRoutesRejectWrongMethod(t *testing.T) {
 func TestProtectedRoutesNeedToken(t *testing.T) {
 	h := newTestRouter(t)
 	for _, rt := range routes {
-		if !rt.protected {
-			continue
-		}
 		t.Run(rt.method+" "+rt.path, func(t *testing.T) {
 			if status := serve(h, rt.method, rt.path, ""); status != http.StatusForbidden {
 				t.Errorf("status = %d, want 403", status)

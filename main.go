@@ -24,13 +24,13 @@ func authPingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Auth ping")
 }
 
-// NewRouter returns the HTTP handler for the API. Routes wrapped with auth
-// need a valid bearer token.
+// NewRouter returns the HTTP handler for the API. Every route needs a valid
+// bearer token.
 func NewRouter(jwtSecret string) http.Handler {
 	auth := middleware.NewAuthzMiddleWare(jwtSecret)
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("GET /api/v1/users/{email}", users.GetUser)
+	mux.Handle("GET /api/v1/users/{email}", auth(http.HandlerFunc(users.GetUser)))
 	mux.Handle("GET /api/v1/authping", auth(http.HandlerFunc(authPingHandler)))
 	mux.Handle("POST /api/v1/keyreg", auth(http.HandlerFunc(users.KeyRegCreate)))
 	mux.Handle("POST /api/v1/wallets", auth(http.HandlerFunc(wallets.WalletCreate)))
@@ -89,9 +89,25 @@ func main() {
 	if err != nil {
 		log.Fatalln("Unable to open database:", err)
 	}
+	keyCipher, err := wallets.NewKeyCipher(cfg.KeyEncKey)
+	if err != nil {
+		log.Fatalln("Invalid key encryption key:", err)
+	}
 	users.UserDatabase = users.NewUserDB(database)
 	wallets.WalletsDatabase = wallets.NewWalletsDB(database)
-	wallets.AddressDatabase = wallets.NewAddressDB(database)
+	wallets.AddressDatabase = wallets.NewAddressDB(database, keyCipher)
+
+	if len(os.Args) > 1 && os.Args[1] == "import-key" {
+		address, err := runImportKey(wallets.AddressDatabase, os.Args[2:], os.Stdin)
+		database.Close()
+		if err != nil {
+			log.Fatalln("import-key:", err)
+		}
+		fmt.Println(address)
+		return
+	}
+
+	chain.RequestIdDatabase = chain.NewRequestIdDB(database)
 	chain.EthChain = chain.NewEthereumChain(cfg.RPCURL, cfg.ChainID)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

@@ -2,20 +2,17 @@ package chain
 
 import (
 	"context"
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
 	"delsignbackend/middleware"
 	"delsignbackend/users"
 	"delsignbackend/wallets"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math/big"
 	"net/http"
+	"regexp"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -57,7 +54,7 @@ func (eth *EthereumChain) SendEth(email string, source string, destination strin
 		return "", err
 	}
 
-	//Determine the nonce
+	// Determine the account nonce (the transaction's sequence number, from the node)
 	nonce, err := eth.client.PendingNonceAt(context.Background(), common.HexToAddress(source))
 	if err != nil {
 		log.Println("Unable to get nonce", err.Error())
@@ -114,12 +111,26 @@ func GetBalance(rw http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(rw).Encode(balance)
 }
 
+// SendPayload is a signed send request. Sig is the user's RSA signature over
+// source+dest+amount+requestId+expiry (see sendMessage). RequestId is a
+// client-chosen UUID and Expiry a Unix time at most maxExpiry ahead; together
+// they stop a captured request from being replayed.
 type SendPayload struct {
 	SourceAddress      string   `json:"source"`
 	DestinationAddress string   `json:"dest"`
 	Amount             *big.Int `json:"amount"`
+	RequestId          string   `json:"requestId"`
+	Expiry             int64    `json:"expiry"`
 	Signature          string   `json:"sig"`
 }
+
+// How far ahead a send request's expiry may be.
+const maxExpiry = 5 * time.Minute
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// now is the clock for expiry checks; tests replace it.
+var now = time.Now
 
 func SendEth(rw http.ResponseWriter, r *http.Request) {
 	log.Println("SendEth")
@@ -140,10 +151,29 @@ func SendEth(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("check request id and expiry")
+	if err := checkFreshness(&payload, now()); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	log.Println("validate signature")
 	valid, err := validateSignature(email, &payload)
 	if !valid || err != nil {
 		http.Error(rw, "Invalid signature", http.StatusUnauthorized)
+		return
+	}
+
+	// Record the request id only once the signature is good, so a caller
+	// with just a JWT can't use up the user's request ids.
+	err = RequestIdDatabase.Use(email, payload.RequestId, payload.Expiry, now())
+	if errors.Is(err, ErrRequestIdUsed) {
+		http.Error(rw, "Request already processed (requestId reused)", http.StatusConflict)
+		return
+	}
+	if err != nil {
+		log.Println("Unable to record request id", err.Error())
+		http.Error(rw, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
@@ -165,23 +195,32 @@ func SendEth(rw http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(rw).Encode(txnContext)
 }
 
+// checkFreshness rejects requests without a UUID request id, and requests that have
+// expired or whose expiry is further ahead than maxExpiry.
+func checkFreshness(payload *SendPayload, now time.Time) error {
+	if !uuidPattern.MatchString(payload.RequestId) {
+		return errors.New("requestId must be a UUID")
+	}
+	expiry := time.Unix(payload.Expiry, 0)
+	if !expiry.After(now) {
+		return errors.New("request expired")
+	}
+	if expiry.After(now.Add(maxExpiry)) {
+		return fmt.Errorf("expiry must be at most %s ahead", maxExpiry)
+	}
+	return nil
+}
+
+// sendMessage is the message the user signs for a send request.
+func sendMessage(payload *SendPayload) string {
+	return fmt.Sprintf("%s%s%d%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount, payload.RequestId, payload.Expiry)
+}
+
 func validateSignature(email string, payload *SendPayload) (bool, error) {
 	// Is the source address affiliated with the user?
 	if wallets.WalletsDatabase.UserOwnsAddress(email, payload.SourceAddress) == false {
 		log.Printf("User %s does not own source address %s\n", email, payload.SourceAddress)
 		return false, errors.New("Invalid source address")
-	}
-
-	// Form the basis for the hash that was signed
-	msg := fmt.Sprintf("%s%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount)
-
-	hash := sha256.Sum256([]byte(msg))
-
-	// Decode the signature
-	decodedSig, err := hex.DecodeString(payload.Signature)
-	if err != nil {
-		log.Println("Unable to decode signature")
-		return false, errors.New("Unable to decode signature")
 	}
 
 	// Read the signing key context for the address
@@ -191,22 +230,7 @@ func validateSignature(email string, payload *SendPayload) (bool, error) {
 		return false, errors.New("Unable to get user info")
 	}
 
-	log.Printf("Pubkey for user: %s\n", userInfo.PubKey)
-
-	pubkeyBytes, err := hex.DecodeString(userInfo.PubKey)
-	if err != nil {
-		log.Println("Unable to decode pubkey")
-		return false, errors.New("Unable to decode pubkey")
-	}
-
-	pubkey, err := x509.ParsePKIXPublicKey(pubkeyBytes)
-
-	//valid := ecdsa.VerifyASN1(pubkey.(*ecdsa.PublicKey), hash[:], decodedSig)
-	//if !valid {
-	//	log.Println("Invalid signature")
-	//}
-	err = rsa.VerifyPKCS1v15(pubkey.(*rsa.PublicKey), crypto.SHA256, hash[:], decodedSig)
-	if err != nil {
+	if err := users.VerifySignature(userInfo.PubKey, sendMessage(payload), payload.Signature); err != nil {
 		log.Println("Invalid signature", err.Error())
 		return false, err
 	}

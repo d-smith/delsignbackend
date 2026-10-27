@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math/big"
@@ -11,12 +12,16 @@ import (
 // Minimum HS256 key length, per RFC 7518 section 3.2 (256 bits)
 const minJWTSecretLen = 32
 
+// AES-256 key length for DELSIGN_KEY_ENC_KEY
+const keyEncKeyLen = 32
+
 type Config struct {
 	Port      string
 	DBPath    string
 	RPCURL    string
 	ChainID   *big.Int
 	JWTSecret string
+	KeyEncKey []byte
 }
 
 // Load reads the configuration from DELSIGN_* environment variables, applying
@@ -57,6 +62,15 @@ func load(getenv func(string) string) (*Config, error) {
 	}
 	if len(cfg.JWTSecret) < minJWTSecretLen {
 		return nil, fmt.Errorf("DELSIGN_JWT_SECRET must be at least %d bytes", minJWTSecretLen)
+	}
+
+	encKey := getenv("DELSIGN_KEY_ENC_KEY")
+	if encKey == "" {
+		return nil, errors.New("DELSIGN_KEY_ENC_KEY is required")
+	}
+	cfg.KeyEncKey, err = hex.DecodeString(encKey)
+	if err != nil || len(cfg.KeyEncKey) != keyEncKeyLen {
+		return nil, fmt.Errorf("DELSIGN_KEY_ENC_KEY must be %d hex characters (%d bytes)", 2*keyEncKeyLen, keyEncKeyLen)
 	}
 
 	return cfg, nil

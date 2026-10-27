@@ -20,6 +20,9 @@ import (
 // JWTSecret is a valid (32 byte) HMAC secret for tests.
 const JWTSecret = "0123456789abcdef0123456789abcdef"
 
+// EncKey is a valid AES-256 key for encrypting private keys in tests.
+var EncKey = []byte("fedcba9876543210fedcba9876543210")
+
 // NewDB returns a database with the schema applied, closed when the test ends.
 // It uses a temp file rather than :memory:, because each pooled connection to
 // :memory: gets its own empty database.

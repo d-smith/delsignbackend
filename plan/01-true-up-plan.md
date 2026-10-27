@@ -106,7 +106,7 @@ All decisions were agreed on 2026-10-23 (see the decision log in §8).
 | D1 | Configuration | Environment variables, read once at startup in a new `config` package: `DELSIGN_PORT`, `DELSIGN_DB_PATH`, `DELSIGN_RPC_URL`, `DELSIGN_CHAIN_ID`, `DELSIGN_JWT_SECRET`, `DELSIGN_KEY_ENC_KEY`. Development defaults for everything except the two secrets. Startup fails if a secret is missing. | Agreed |
 | D2 | Database handles | One shared `*sql.DB`, opened in `main` and passed to each store constructor. Keep the package-level vars so handler code barely changes; tests set them to an in-memory DB. Apply the schema at startup with `CREATE TABLE IF NOT EXISTS` from an embedded `schema.sql`. | Agreed |
 | D3 | Private keys at rest | Encrypt the `private_key` column with AES-256-GCM, using a key from `DELSIGN_KEY_ENC_KEY`. Stored format: `enc:v1:<hex nonce‖ciphertext>`. **Plaintext keys are not supported:** reading a row without the prefix is an error. Existing dev DBs are thrown away. To replace the readme's raw SQL seed, add an `import-key` subcommand that encrypts a key (for example an Anvil dev account) and attaches it to a wallet. | Agreed |
-| D4 | Replay protection on send | **Breaking change for the client, hard cutover** (no period where both formats work). The signed message becomes `source+dest+amount+nonce+expiry`. `nonce` is a client-generated UUID and `expiry` is a Unix timestamp, at most 5 minutes in the future. The server rejects expired requests and nonces it has already seen; seen nonces go in a `used_nonces` table. | Agreed |
+| D4 | Replay protection on send | **Breaking change for the client, hard cutover** (no period where both formats work). The signed message becomes `source+dest+amount+requestId+expiry`. `requestId` is a client-generated UUID and `expiry` is a Unix timestamp, at most 5 minutes in the future. The server rejects expired requests and request ids it has already seen; seen ids go in a `used_request_ids` table. (Originally named `nonce`; renamed so it isn't confused with the Ethereum account nonce; see §8.) | Agreed |
 | D5 | Key registration and rotation | A user can register their first key with a JWT alone. **Replacing** an existing key also needs a signature from the current key. Otherwise a stolen JWT could register a new key and then send funds. **Accepted limitation:** a user who loses their key is locked out, because there is no recovery path. This is recorded in `plan/roadmap.md` (T5.2). | Agreed |
 | D6 | `GET /users/{email}` | Move it behind auth, and let users look up only their own record (403 for anyone else). The frontend doesn't look up other users. | Agreed |
 | D7 | JWT library | `golang-jwt/jwt/v5` with `WithValidMethods(["HS256"])`. The `exp` claim is required. | Agreed |
@@ -268,22 +268,63 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 3 — Security fixes
 
-- [ ] **T3.1 Stop logging secrets.** Remove the logging of the private key
+- [x] **T3.1 Stop logging secrets.** Remove the logging of the private key
   (`wallets/address.go`), the auth header (`middleware/authcheck.go`), the claims, and the
   full key-registration struct. *Accept:* a grep for these log calls finds nothing.
-- [ ] **T3.2 Encrypt private keys at rest (D3).** Encrypt and decrypt in `AddressDB`,
+  *Done:* removed the four calls; the grep finds nothing. What's still logged is public
+  keys, emails and addresses. A smoke run's server log (94 lines) has no token, claims,
+  private key or signature in it.
+- [x] **T3.2 Encrypt private keys at rest (D3).** Encrypt and decrypt in `AddressDB`,
   and add the `import-key` subcommand. Document it in the readme (the raw-SQL seed was removed in T1.5).
   *Accept:* new rows start with `enc:v1:`; reading a plaintext row returns an error; an Anvil
   account imported with `import-key` can send; the smoke script still passes; tests round-trip a key through encryption and
   show that a wrong encryption key fails.
-- [ ] **T3.3 Key rotation needs the current key (D5).** *Accept:* tests show the first
+  *Done:* `DELSIGN_KEY_ENC_KEY` is required: 64 hex characters, checked in `config`.
+  `wallets.KeyCipher` does AES-256-GCM with a random 12-byte nonce, and binds the address in
+  as additional data, so a ciphertext copied onto another row fails to decrypt.
+  `NewAddressDB(db, cipher)` encrypts on insert and decrypts on read; a row without
+  `enc:v1:` is an error. `AddressDB.ImportKey` checks the key, that the wallet exists, and
+  that the address isn't already stored. `delsignbackend import-key -wallet <id>` reads the
+  key from stdin, not a flag, so it doesn't show in `ps`. Tests: round trip, random nonce;
+  wrong key, other address, plaintext row, bad hex, truncated, tampered all fail; non-32-byte
+  keys rejected; the stored row has the prefix; import success and rejections; subcommand
+  arguments. Smoke script: imports Anvil account 9 and sends from it. Checked by hand after a
+  smoke run (`SMOKE_KEEP=1`): all 4 `private_key` rows start with `enc:v1:`. Readme: config row, encryption note, `import-key`.
+- [x] **T3.3 Key rotation needs the current key (D5).** *Accept:* tests show the first
   registration succeeds, a replacement without a current-key signature fails (403), and a
   replacement with one succeeds.
-- [ ] **T3.4 Replay protection (D4).** Add the new payload fields, the expiry check and the
-  `used_nonces` table. Document the new signing format in the readme. *Accept:* tests show a
+  *Done:* new optional field `sig4rotate`: the current key's signature over
+  `email + newPubkeyHex` (see §8). Storage: `NewUserReg` is a plain `INSERT` (it was
+  `INSERT OR REPLACE`), and `ReplaceKey` is `UPDATE … WHERE pubkey = <current>`, so two
+  racing requests can't both win (the loser gets 409). New `users.VerifySignature` is shared
+  by registration, rotation and send; it checks the key type and the signature hex, which
+  covers part of T4.1 (see below). Tests: first registration; six bad rotations (none, signed
+  by the new key, by another key, wrong message, approving a different key, not hex) → 403
+  with the key unchanged; a valid rotation → 200; afterwards the retired key can't approve
+  another → 403; concurrent-change detection in the store.
+- [x] **T3.4 Replay protection (D4).** Add the new payload fields, the expiry check and the
+  `used_request_ids` table. Document the new signing format in the readme. *Accept:* tests show a
   replayed request → 409 and an expired request → 400.
-- [ ] **T3.5 Lock down user lookup (D6).** *Accept:* tests show your own email → 200, another
+  *Done:* `SendPayload` gains `requestId` and `expiry`; the signed message is
+  `source+dest+amount+requestId+expiry` (`sendMessage`). The order of checks is fields (400:
+  `requestId` must be UUID-formatted, `now < expiry ≤ now + 5 min`) → signature (401) →
+  record the request id (409 if seen) → broadcast. The id is recorded only after the
+  signature checks out, so a stolen JWT can't use up a user's request ids.
+  `used_request_ids(email, request_id, expiry)` has primary key (email, request_id). Expired
+  rows are pruned on each insert, because an expired request is rejected before its id is
+  checked. Tests (fixed clock, no node, so a request that passes every check fails with a 500
+  at broadcast): replay → 409 and a fresh id is fine; expired, expires now, too far ahead,
+  missing id, non-UUID → 400; the exact 5-minute boundary is allowed; tampered requestId,
+  expiry or amount → 401; a bad signature doesn't use the id; pruning; the same id for
+  another user is fine; message format. The smoke
+  script signs the new format and checks that a replay gets 409. Readme: "Signing protocol"
+  section. **Breaking for the frontend** (hard cutover, as agreed).
+- [x] **T3.5 Lock down user lookup (D6).** *Accept:* tests show your own email → 200, another
   user's email → 403, and no token → 403.
+  *Done:* the route is wrapped in auth (every route now is), and `GetUser` compares the path
+  email with the token's. Own → 200 (was 201), not registered → 404 (was 500), other → 403.
+  The no-token case is covered by the route tests in `main_test.go`, which now treat every
+  route as protected. The smoke script checks both own → 200 and other → 403.
 
 ### Phase 4 — Robustness fixes
 
@@ -292,6 +333,9 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   signature hex decode in `validateKeyReg`. Check the public-key types (assert with `ok`).
   *Accept:* a test for each malformed input gets a 4xx response, not a 500 or a panic.
   Remove the skip on `TestValidateKeyRegRejectsNonRSAKey` (added in T1.4; currently panics).
+  *Partly done in T3.3/T3.4:* `users.VerifySignature` now handles the public-key parse and
+  type check and the signature hex decode, for both keyreg and send, and the skip is
+  removed. Left: the address insert in `CreateAddressForWallet` and `SuggestGasPrice`.
 - [ ] **T4.2 Input validation.** Check addresses with `common.IsHexAddress` and normalize
   them to checksum form before DB lookups; require `amount` > 0; decode the send body with
   `DecodeJSONBody`. *Accept:* a lowercase source address that the user owns is accepted;
@@ -303,8 +347,8 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   chain interface. *Accept:* manual smoke test passes; a unit test with a fake client checks
   the fields of the transaction it builds.
 - [ ] **T4.5 Concurrent sends from one address.** Serialize sends per source address with an
-  in-process lock, so two parallel requests don't get the same nonce. *Accept:* the test fires
-  two concurrent sends and gets two different nonces.
+  in-process lock, so two parallel requests don't get the same Ethereum account nonce.
+  *Accept:* the test fires two concurrent sends and gets two different account nonces.
 
 ### Phase 5 — Close-out
 
@@ -360,6 +404,21 @@ _No open questions._
   middleware, so splitting them afterwards isn't worth it.
 - 2026-10-27 (T2.5): Transitive bumps beyond go-ethereum's own pins are taken only where
   they don't grow the build; golang-set/v2 stays on v2.6.0 (see T2.5). Re-check at T5.3.
+- 2026-10-27 (Phase 3): Done as one change at the user's request, like Phase 2.
+- 2026-10-27 (T3.3): D5 refined. The rotation proof is a new optional field, `sig4rotate`:
+  the current key's signature over `email + newPubkeyHex`. Binding it to the new key means
+  the signature can't be reused to install a different key.
+- 2026-10-27 (T3.4): D4 refined. Request ids are unique per user, not globally. The server
+  only checks that a request id looks like a UUID. Expiry is strict (`now < expiry ≤ now + 5 min`, with
+  no clock-skew allowance); the readme tells clients to use 1–2 minutes.
+- 2026-10-27 (T3.4): D4's wire field renamed from `nonce` to `requestId` (table
+  `used_request_ids`) before the frontend adopts the format. "Nonce" was easily confused
+  with the Ethereum account nonce, which the server still gets from the node.
+- 2026-10-27 (T3.2): The address is bound into the ciphertext as additional data, using
+  the address string exactly as stored (checksum form). T4.2's normalization keeps lookups
+  in that form, so the two agree.
+- 2026-10-27 (T3.2): `import-key` loads the full config, so it also needs
+  `DELSIGN_JWT_SECRET`. Not worth a separate config path for a dev command.
 - 2026-10-27 (T2.3): Existing handler status codes are still wrong in the places T4.3
   lists: user lookup of an unknown email → 500, send with a bad body → 500, `GET /wallets`
-  → 201. Seen in the route tests; left for T4.1/T4.3.
+  → 201. Seen in the route tests; left for T4.1/T4.3. (User lookup fixed in T3.5.)

@@ -5,9 +5,12 @@ import (
 	"database/sql"
 	"delsignbackend/middleware"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -20,17 +23,24 @@ type Address struct {
 }
 
 type AddressDB struct {
-	db *sql.DB
+	db     *sql.DB
+	cipher *KeyCipher
 }
 
-func NewAddressDB(db *sql.DB) *AddressDB {
-	return &AddressDB{db: db}
+// NewAddressDB returns a store that encrypts private keys with the given cipher.
+func NewAddressDB(db *sql.DB, cipher *KeyCipher) *AddressDB {
+	return &AddressDB{db: db, cipher: cipher}
 }
 
 var AddressDatabase *AddressDB
 
 func (adb *AddressDB) CreateAddressForWallet(walletId int, eoa string, privateKey string, publicKey string) error {
-	_, err := adb.db.Exec("INSERT INTO addresses(wallet_id,address,private_key,public_key) VALUES(?,?,?,?);", walletId, eoa, privateKey, publicKey)
+	encrypted, err := adb.cipher.Encrypt(eoa, privateKey)
+	if err != nil {
+		return err
+	}
+
+	_, err = adb.db.Exec("INSERT INTO addresses(wallet_id,address,private_key,public_key) VALUES(?,?,?,?);", walletId, eoa, encrypted, publicKey)
 	if err != nil {
 		return err
 	}
@@ -45,7 +55,12 @@ func (adb *AddressDB) ReadPrivateKeyForAddress(address string) (*ecdsa.PrivateKe
 		return nil, err
 	}
 
-	privateKeyBytes, err := hexutil.Decode(privateKeyFromDB)
+	decrypted, err := adb.cipher.Decrypt(address, privateKeyFromDB)
+	if err != nil {
+		return nil, fmt.Errorf("address %s: %w", address, err)
+	}
+
+	privateKeyBytes, err := hexutil.Decode(decrypted)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +73,38 @@ func (adb *AddressDB) ReadPrivateKeyForAddress(address string) (*ecdsa.PrivateKe
 	return privateKey, nil
 }
 
+// ImportKey stores an existing private key (hex, with or without 0x) as an
+// address of the given wallet, and returns the address.
+func (adb *AddressDB) ImportKey(walletId int, keyHex string) (string, error) {
+	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(keyHex, "0x"))
+	if err != nil {
+		return "", errors.New("invalid private key")
+	}
+	address := addressFromKey(privateKey)
+
+	var exists bool
+	err = adb.db.QueryRow("SELECT EXISTS(SELECT 1 FROM wallets WHERE id=?);", walletId).Scan(&exists)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", fmt.Errorf("wallet %d does not exist", walletId)
+	}
+
+	err = adb.db.QueryRow("SELECT EXISTS(SELECT 1 FROM addresses WHERE address=?);", address.EOA).Scan(&exists)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		return "", fmt.Errorf("address %s is already stored", address.EOA)
+	}
+
+	if err := adb.CreateAddressForWallet(walletId, address.EOA, address.PrivateKey, address.PublicKey); err != nil {
+		return "", err
+	}
+	return address.EOA, nil
+}
+
 func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {
 	return crypto.PubkeyToAddress(*publicKey).Hex()
 }
@@ -68,8 +115,11 @@ func NewAddress() *Address {
 		log.Fatal(err)
 	}
 
+	return addressFromKey(privateKey)
+}
+
+func addressFromKey(privateKey *ecdsa.PrivateKey) *Address {
 	privateKeyBytes := crypto.FromECDSA(privateKey)
-	log.Println("Private Key:", hexutil.Encode(privateKeyBytes))
 
 	publicKey := privateKey.Public()
 	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)

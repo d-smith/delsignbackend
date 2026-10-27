@@ -15,7 +15,7 @@ func TestOpenCreatesTables(t *testing.T) {
 	}
 	defer db.Close()
 
-	for _, table := range []string{"users", "wallets", "addresses"} {
+	for _, table := range []string{"users", "wallets", "addresses", "used_request_ids"} {
 		var name string
 		err := db.QueryRow("SELECT name FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&name)
 		if err != nil {
