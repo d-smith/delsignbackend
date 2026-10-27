@@ -7,19 +7,19 @@ import (
 	"log"
 	"net/http"
 	"strings"
-
-	"github.com/golang-jwt/jwt"
 )
 
 // NewAuthzMiddleWare returns middleware that validates the bearer token with
 // the given HMAC secret and puts the email claim in the request context.
-func NewAuthzMiddleWare(jwtSecret string) func(http.ResponseWriter, *http.Request, http.HandlerFunc) {
-	return func(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-		authzMiddleWare(rw, r, next, jwtSecret)
+func NewAuthzMiddleWare(jwtSecret string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			authzMiddleWare(rw, r, next, jwtSecret)
+		})
 	}
 }
 
-func authzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc, jwtSecret string) {
+func authzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.Handler, jwtSecret string) {
 	log.Println("check auth header")
 
 	reqToken := r.Header.Get("Authorization")
@@ -43,13 +43,12 @@ func authzMiddleWare(rw http.ResponseWriter, r *http.Request, next http.HandlerF
 	}
 
 	log.Println("claimz", claimz)
-	email, ok := (claimz.(jwt.MapClaims))["email"].(string)
+	email, ok := claimz["email"].(string)
 	if !ok || email == "" {
 		http.Error(rw, "Invalid token", 403)
 		return
 	}
-	next(rw, r.WithContext(WithEmail(r.Context(), email)))
-	// do some stuff afters
+	next.ServeHTTP(rw, r.WithContext(WithEmail(r.Context(), email)))
 }
 
 type contextKey string

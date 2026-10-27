@@ -11,7 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/gorilla/mux"
 )
 
 type Address struct {
@@ -105,8 +104,7 @@ func CreateAddressForWallet(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check there us a wallet with the given id for this user
-	params := mux.Vars(r)
-	walletId := params["id"]
+	walletId := r.PathValue("id")
 	if walletId == "" {
 		http.Error(rw, "Missing wallet id", 403)
 		return

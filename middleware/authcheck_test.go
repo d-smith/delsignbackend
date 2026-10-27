@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 // runAuthz sends a request with the given Authorization header through the
@@ -20,11 +21,28 @@ func runAuthz(t *testing.T, authHeader string) (status int, email string, called
 	}
 	rec := httptest.NewRecorder()
 
-	NewAuthzMiddleWare(testutil.JWTSecret)(rec, req, func(w http.ResponseWriter, r *http.Request) {
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		email, _ = EmailFromContext(r.Context())
 	})
+	NewAuthzMiddleWare(testutil.JWTSecret)(next).ServeHTTP(rec, req)
 	return rec.Code, email, called
+}
+
+// claims returns the given claims plus an exp one minute from now.
+func claims(c jwt.MapClaims) jwt.MapClaims {
+	c["exp"] = time.Now().Add(time.Minute).Unix()
+	return c
+}
+
+// signWith returns a token with the given claims signed by method and key.
+func signWith(t *testing.T, method jwt.SigningMethod, key interface{}, c jwt.MapClaims) string {
+	t.Helper()
+	tok, err := jwt.NewWithClaims(method, c).SignedString(key)
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+	return tok
 }
 
 func TestAuthzRejects(t *testing.T) {
@@ -35,10 +53,14 @@ func TestAuthzRejects(t *testing.T) {
 		{"missing header", ""},
 		{"not bearer", "Basic abc"},
 		{"garbage token", "Bearer not-a-jwt"},
-		{"wrong secret", "Bearer " + testutil.SignToken(t, "another-secret-another-secret-xx", jwt.MapClaims{"email": "a@example.com"})},
-		{"no email claim", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"sub": "a"})},
-		{"non-string email", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": 42})},
-		{"empty email", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": ""})},
+		{"wrong secret", "Bearer " + testutil.SignToken(t, "another-secret-another-secret-xx", claims(jwt.MapClaims{"email": "a@example.com"}))},
+		{"no email claim", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, claims(jwt.MapClaims{"sub": "a"}))},
+		{"non-string email", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, claims(jwt.MapClaims{"email": 42}))},
+		{"empty email", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, claims(jwt.MapClaims{"email": ""}))},
+		{"missing exp", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": "a@example.com"})},
+		{"expired", "Bearer " + testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": "a@example.com", "exp": time.Now().Add(-time.Minute).Unix()})},
+		{"wrong algorithm HS384", "Bearer " + signWith(t, jwt.SigningMethodHS384, []byte(testutil.JWTSecret), claims(jwt.MapClaims{"email": "a@example.com"}))},
+		{"wrong algorithm none", "Bearer " + signWith(t, jwt.SigningMethodNone, jwt.UnsafeAllowNoneSignatureType, claims(jwt.MapClaims{"email": "a@example.com"}))},
 	}
 
 	for _, tt := range tests {
@@ -55,7 +77,7 @@ func TestAuthzRejects(t *testing.T) {
 }
 
 func TestAuthzAcceptsValidToken(t *testing.T) {
-	status, email, called := runAuthz(t, "Bearer "+testutil.SignToken(t, testutil.JWTSecret, jwt.MapClaims{"email": "a@example.com"}))
+	status, email, called := runAuthz(t, "Bearer "+testutil.SignToken(t, testutil.JWTSecret, claims(jwt.MapClaims{"email": "a@example.com"})))
 	if !called || status != http.StatusOK {
 		t.Fatalf("called = %v, status = %d; want next handler called with 200", called, status)
 	}

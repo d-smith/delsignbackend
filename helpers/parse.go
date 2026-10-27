@@ -7,10 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strings"
-
-	"github.com/golang/gddo/httputil/header"
 )
 
 type MalformedRequest struct {
@@ -23,9 +22,9 @@ func (mr *MalformedRequest) Error() string {
 }
 
 func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) error {
-	if r.Header.Get("Content-Type") != "" {
-		value, _ := header.ParseValueAndParams(r.Header, "Content-Type")
-		if value != "application/json" {
+	if ct := r.Header.Get("Content-Type"); ct != "" {
+		mediaType, _, err := mime.ParseMediaType(ct)
+		if err != nil || mediaType != "application/json" {
 			msg := "Content-Type header is not application/json"
 			return &MalformedRequest{Status: http.StatusUnsupportedMediaType, Msg: msg}
 		}

@@ -13,8 +13,6 @@ import (
 	"errors"
 	"log"
 	"net/http"
-
-	"github.com/gorilla/mux"
 )
 
 type KeyReg struct {
@@ -106,9 +104,9 @@ type UserInfo struct {
 }
 
 func GetUser(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	log.Println("lookup ", params["email"])
-	userInfo, err := UserDatabase.GetUser(params["email"])
+	email := r.PathValue("email")
+	log.Println("lookup ", email)
+	userInfo, err := UserDatabase.GetUser(email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

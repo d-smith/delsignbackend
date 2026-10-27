@@ -43,21 +43,21 @@ exist to keep that property true.
 
 ## 3. Architecture (current)
 
+_Updated after Phase 2: one standard library `ServeMux`; negroni and the second router are gone._
+
 ```
-            HTTP :3010
+       http.Server :3010 (timeouts, graceful shutdown)
                 │
-        negroni.Classic (logger, recovery, static)
+        Logging → Recovery
                 │
-          mux router r ── GET /api/v1/users/{email}        (public)
+        http.ServeMux ── GET /api/v1/users/{email}         (public until T3.5)
                 │
-          /api prefix ──► AuthzMiddleWare (JWT → ctx "email")
-                               │
-                         mux router ar
+          per route: auth(handler)  (JWT → typed ctx email)
                 ┌──────────────┼───────────────────┐
              users/        wallets/             chain/
           keyreg, GetUser  wallets, addresses   balance, send
                 │              │                   │
-                └──── SQLite delsign.db ◄──────────┤ (3 separate *sql.DB handles)
+                └──── SQLite delsign.db ◄──────────┤ (one shared *sql.DB)
                                                    │
                                      ethclient ──► Anvil :8545 (chain 31337)
 ```
@@ -218,10 +218,19 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 2 — Dependency true-up
 
-- [ ] **T2.1 JWT v5 (D7).** Replace `golang-jwt/jwt` v3. *Accept:* tests cover a wrong
+- [x] **T2.1 JWT v5 (D7).** Replace `golang-jwt/jwt` v3. *Accept:* tests cover a wrong
   algorithm, an expired token and a missing `exp` (all → 403).
-- [ ] **T2.2 Remove gddo.** Use `mime.ParseMediaType` in `helpers/parse.go`.
+  *Done:* v5.3.1. `authz.ValidateToken` uses `WithValidMethods(["HS256"])` and
+  `WithExpirationRequired()`, and returns `jwt.MapClaims` directly, so the middleware's
+  type assertion is gone. New middleware tests: missing `exp`, expired, HS384, and `none`,
+  all 403. The existing test tokens now carry `exp`. Readme documents the token rules.
+  **Breaking for the token issuer:** tokens must include `exp`.
+- [x] **T2.2 Remove gddo.** Use `mime.ParseMediaType` in `helpers/parse.go`.
   *Accept:* gddo no longer in `go.mod`; tests for the Content-Type handling.
+  *Done:* a Content-Type that doesn't parse is now rejected (415); gddo ignored the parse
+  error. `helpers/parse_test.go`: 8 Content-Type cases (no header, parameters, mixed case,
+  look-alike type, malformed) and 7 bad-body cases (empty, syntax, truncated, wrong type,
+  unknown field, two objects, over 1 MB → 413).
 - [ ] **T2.3 Move to the standard library `ServeMux`; harden the server (D8).** Rewrite the
   routes in `main.go` as method+path patterns on one `http.ServeMux`, and switch handlers
   from `mux.Vars` to `r.PathValue`. Add logging and recovery middleware, and apply the auth
@@ -230,10 +239,32 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   *Accept:* neither gorilla/mux nor negroni in `go.mod`; route tests show each endpoint
   answers the right method, gives 405 for a wrong method, and gives 403 without a token
   (except public routes, if any are left); Ctrl-C shuts down cleanly.
-- [ ] **T2.4 go-ethereum v1.17.x.** Upgrade only, keeping the current transaction type.
+  *Done:* `NewRouter(secret)` in `main.go` registers the 9 routes on one `ServeMux`;
+  `GET /api/v1/users/{email}` stays public until T3.5. The auth middleware is now
+  `func(http.Handler) http.Handler`. New `middleware/server.go` has `Logging` (method, path,
+  status, duration) and `Recovery` (500 and a logged stack; re-panics
+  `http.ErrAbortHandler`). Timeouts: read header 5s, read 10s, write 30s (send waits on the
+  node), idle 120s. `signal.NotifyContext` (SIGINT, SIGTERM) → `Shutdown` with a 10s limit
+  → DB closed. `main_test.go`: each route reaches its handler with a token, gets 405 for a
+  wrong method, 403 without a token (protected routes), and an unknown path gets 404.
+  Verified by hand: SIGINT and SIGTERM both log server and DB shutdown and exit 0; a bind
+  error still closes the DB and exits 1. negroni's static file handler is dropped
+  (there is no `public/` directory).
+- [x] **T2.4 go-ethereum v1.17.x.** Upgrade only, keeping the current transaction type.
   Fix anything that breaks at compile time. *Accept:* manual smoke test passes.
-- [ ] **T2.5 Remaining bumps.** go-sqlite3 and the transitive modules; `go mod tidy`.
+  *Done:* v1.13.2 → v1.17.10 with no code changes; the APIs we use (`ethclient`,
+  `types.NewTransaction`, `NewEIP155Signer`, `crypto`) all still compile. `scripts/smoke.sh`
+  passes against anvil 1.8.6.
+- [x] **T2.5 Remaining bumps.** go-sqlite3 and the transitive modules; `go mod tidy`.
   *Accept:* `govulncheck` shows 0 reachable findings, or each one left is listed here with a reason.
+  *Done:* go-sqlite3 v1.14.17 → v1.14.52 (SQLite 3.42.0 → 3.53.4), then `go get -u ./...`
+  and `go mod tidy`. That fixed the last reachable finding (gorilla/websocket v1.4.2 →
+  v1.5.3, GO-2026-6278, reached via `ethclient`). Exception: golang-set/v2 is held at
+  v2.6.0, go-ethereum's version, because v2.9.0 pulls `go.mongodb.org/mongo-driver/bson`
+  into the build. `go.mod` now has 3 direct dependencies (go-ethereum, jwt/v5, go-sqlite3).
+  govulncheck v1.9.0: **0 called / 0 imported / 0 required** (baseline 24 / 7 / 27).
+  `go list -m -u all` still shows 98 of 190 modules with updates; these are in the module
+  graph but not in our build (mostly go-ethereum's own tooling and test dependencies).
 
 ### Phase 3 — Security fixes
 
@@ -324,3 +355,11 @@ _No open questions._
   seeding an Anvil private key with raw SQL. That removes the script's dependence on DB
   internals (it survives T3.2's encryption), and the script also runs on Hardhat or Ganache.
 - 2026-10-27 (T1.5): Blocker cleared: WSL is on Ubuntu 24.04 (glibc 2.39), anvil 1.8.6.
+- 2026-10-27 (Phase 2): At the user's request, T2.1–T2.5 were done together as **one
+  change** instead of one commit per task (§6). They share `go.mod`/`go.sum` and the
+  middleware, so splitting them afterwards isn't worth it.
+- 2026-10-27 (T2.5): Transitive bumps beyond go-ethereum's own pins are taken only where
+  they don't grow the build; golang-set/v2 stays on v2.6.0 (see T2.5). Re-check at T5.3.
+- 2026-10-27 (T2.3): Existing handler status codes are still wrong in the places T4.3
+  lists: user lookup of an unknown email → 500, send with a bad body → 500, `GET /wallets`
+  → 201. Seen in the route tests; left for T4.1/T4.3.

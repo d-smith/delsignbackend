@@ -20,6 +20,13 @@ export DELSIGN_JWT_SECRET=$(openssl rand -hex 32)
 go run .
 ```
 
+Protected endpoints need an `Authorization: Bearer <token>` header. The token must be an
+HS256 JWT signed with `DELSIGN_JWT_SECRET`, with a non-empty `email` claim and an `exp`
+claim; tokens without `exp`, expired tokens, and other algorithms get a 403.
+
+The server stops cleanly on Ctrl-C or SIGTERM: it lets in-flight requests finish (up to
+10 seconds), then closes the database.
+
 
 ## Dev chain
 
