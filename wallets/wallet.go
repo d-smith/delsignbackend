@@ -2,9 +2,8 @@ package wallets
 
 import (
 	"database/sql"
+	"delsignbackend/helpers"
 	"delsignbackend/middleware"
-	"encoding/json"
-	"log"
 	"net/http"
 )
 
@@ -23,17 +22,11 @@ func WalletCreate(rw http.ResponseWriter, r *http.Request) {
 	// Create a wallet entry
 	id, err := WalletsDatabase.CreateWallet(email)
 	if err != nil {
-		http.Error(rw, err.Error(), 500)
+		helpers.ServerError(rw, err)
 		return
 	}
 
-	var walletInfo WalletInfo
-	walletInfo.Id = id
-
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusCreated)
-	json.NewEncoder(rw).Encode(walletInfo)
-
+	helpers.WriteJSON(rw, http.StatusCreated, WalletInfo{Id: id})
 }
 
 func GetWallets(rw http.ResponseWriter, r *http.Request) {
@@ -47,13 +40,11 @@ func GetWallets(rw http.ResponseWriter, r *http.Request) {
 	// Get the wallet ids for this user
 	wallets, err := WalletsDatabase.ListWallets(email)
 	if err != nil {
-		http.Error(rw, err.Error(), 500)
+		helpers.ServerError(rw, err)
 		return
 	}
 
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusCreated)
-	json.NewEncoder(rw).Encode(wallets)
+	helpers.WriteJSON(rw, http.StatusOK, wallets)
 }
 
 type WalletsDB struct {
@@ -79,25 +70,18 @@ func (wdb *WalletsDB) CreateWallet(email string) (int, error) {
 	return int(id), nil
 }
 
-func (wdb *WalletsDB) UserOwnsWallet(email string, walletId int) bool {
-	var id int
-	err := wdb.db.QueryRow("SELECT id FROM wallets WHERE email=? AND id=?;", email, walletId).Scan(&id)
-	if err != nil {
-		return false
-	}
-	return true
+func (wdb *WalletsDB) UserOwnsWallet(email string, walletId int) (bool, error) {
+	var owns bool
+	err := wdb.db.QueryRow("SELECT EXISTS(SELECT 1 FROM wallets WHERE email=? AND id=?);", email, walletId).Scan(&owns)
+	return owns, err
 }
 
-func (wdb *WalletsDB) UserOwnsAddress(email string, address string) bool {
-	var id int
-	var lookupAddress string
-	err := wdb.db.QueryRow("select w.id, a.address from wallets w, addresses a WHERE w.email=? and a.address = ? and a.wallet_id = w.id order by w.id;", email, address).Scan(&id, &lookupAddress)
-	if err != nil {
-		log.Printf("Error getting wallet id for address: %s\n", err.Error())
-		return false
-	}
-	log.Printf("Wallet id for address %s is %d", address, id)
-	return true
+// UserOwnsAddress reports whether address is in one of the user's wallets.
+// address must be in checksum form, as addresses are stored.
+func (wdb *WalletsDB) UserOwnsAddress(email string, address string) (bool, error) {
+	var owns bool
+	err := wdb.db.QueryRow("SELECT EXISTS(SELECT 1 FROM wallets w, addresses a WHERE w.email=? AND a.address=? AND a.wallet_id=w.id);", email, address).Scan(&owns)
+	return owns, err
 }
 
 func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
@@ -107,6 +91,7 @@ func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var walletId int
@@ -117,7 +102,7 @@ func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
 		wallets = append(wallets, walletId)
 	}
 
-	return wallets, nil
+	return wallets, rows.Err()
 }
 
 type WalletAddressPair struct {
@@ -130,9 +115,9 @@ func (wdb *WalletsDB) WalletsAndAddressesForUser(email string) ([]WalletAddressP
 
 	rows, err := wdb.db.Query("select w.id, a.address from wallets w, addresses a WHERE w.email=? and a.wallet_id = w.id order by w.id ;", email)
 	if err != nil {
-		log.Println(err)
 		return nil, err
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var pair WalletAddressPair
@@ -143,7 +128,7 @@ func (wdb *WalletsDB) WalletsAndAddressesForUser(email string) ([]WalletAddressP
 		pairs = append(pairs, pair)
 	}
 
-	return pairs, nil
+	return pairs, rows.Err()
 }
 
 func GetWalletAndAddressesForUser(rw http.ResponseWriter, r *http.Request) {
@@ -157,11 +142,9 @@ func GetWalletAndAddressesForUser(rw http.ResponseWriter, r *http.Request) {
 	// Get the wallet ids for this user
 	pairs, err := WalletsDatabase.WalletsAndAddressesForUser(email)
 	if err != nil {
-		http.Error(rw, err.Error(), 500)
+		helpers.ServerError(rw, err)
 		return
 	}
 
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusOK)
-	json.NewEncoder(rw).Encode(pairs)
+	helpers.WriteJSON(rw, http.StatusOK, pairs)
 }

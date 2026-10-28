@@ -101,7 +101,10 @@ func TestNewKeyCipherNeeds32Bytes(t *testing.T) {
 
 func TestAddressDBStoresEncryptedKeys(t *testing.T) {
 	adb, walletId := newStores(t)
-	addr := NewAddress()
+	addr, err := NewAddress()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := adb.CreateAddressForWallet(walletId, addr.EOA, addr.PrivateKey, addr.PublicKey); err != nil {
 		t.Fatal(err)
 	}

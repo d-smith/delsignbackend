@@ -67,7 +67,10 @@ func DecodeJSONBody(w http.ResponseWriter, r *http.Request, dst interface{}) err
 			return &MalformedRequest{Status: http.StatusRequestEntityTooLarge, Msg: msg}
 
 		default:
-			return err
+			// Anything else, such as a field type's own UnmarshalJSON
+			// rejecting the value, is still a problem with the request
+			msg := fmt.Sprintf("Request body could not be decoded: %s", err)
+			return &MalformedRequest{Status: http.StatusBadRequest, Msg: msg}
 		}
 	}
 

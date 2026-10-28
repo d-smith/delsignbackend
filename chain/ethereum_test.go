@@ -1,30 +1,95 @@
 package chain
 
 import (
-	"bytes"
+	"context"
 	"crypto/rsa"
 	"delsignbackend/middleware"
 	"delsignbackend/testutil"
 	"delsignbackend/users"
 	"delsignbackend/wallets"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 const testEmail = "a@example.com"
+const dest = "0x0000000000000000000000000000000000000002"
 
-var testNow = time.Unix(1_800_000_000, 0)
+var (
+	testNow     = time.Unix(1_800_000_000, 0)
+	testChainID = big.NewInt(31337)
+	testBaseFee = big.NewInt(1_000_000_000) // 1 gwei
+	testTip     = big.NewInt(100_000_000)   // 0.1 gwei
+)
 
-// sendFixture is a registered user owning one address, with the chain pointed
-// at a node that isn't there: a request that passes every check fails with a
-// 500 when it's broadcast.
+// fakeClient is an Ethereum node in memory. The pending nonce is the number of
+// transactions sent so far, as on a real node with an empty mempool.
+type fakeClient struct {
+	mu         sync.Mutex
+	sent       []*types.Transaction
+	err        error         // returned by every call when set
+	noBaseFee  bool          // pretend EIP-1559 isn't active
+	nonceDelay time.Duration // widens the window between nonce lookup and broadcast
+}
+
+func (fc *fakeClient) BalanceAt(ctx context.Context, account common.Address, block *big.Int) (*big.Int, error) {
+	if fc.err != nil {
+		return nil, fc.err
+	}
+	return big.NewInt(12345), nil
+}
+
+func (fc *fakeClient) PendingNonceAt(ctx context.Context, account common.Address) (uint64, error) {
+	if fc.err != nil {
+		return 0, fc.err
+	}
+	time.Sleep(fc.nonceDelay)
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	return uint64(len(fc.sent)), nil
+}
+
+func (fc *fakeClient) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
+	if fc.err != nil {
+		return nil, fc.err
+	}
+	return new(big.Int).Set(testTip), nil
+}
+
+func (fc *fakeClient) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
+	if fc.err != nil {
+		return nil, fc.err
+	}
+	if fc.noBaseFee {
+		return &types.Header{}, nil
+	}
+	return &types.Header{BaseFee: new(big.Int).Set(testBaseFee)}, nil
+}
+
+func (fc *fakeClient) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+	if fc.err != nil {
+		return fc.err
+	}
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	fc.sent = append(fc.sent, tx)
+	return nil
+}
+
+// sendFixture is a registered user owning one address, on a fake node.
 type sendFixture struct {
 	key    *rsa.PrivateKey
 	source string
+	node   *fakeClient
 }
 
 func newSendFixture(t *testing.T) *sendFixture {
@@ -38,7 +103,8 @@ func newSendFixture(t *testing.T) *sendFixture {
 	wallets.WalletsDatabase = wallets.NewWalletsDB(database)
 	wallets.AddressDatabase = wallets.NewAddressDB(database, keyCipher)
 	RequestIdDatabase = NewRequestIdDB(database)
-	EthChain = NewEthereumChain("http://127.0.0.1:1", big.NewInt(31337))
+	node := &fakeClient{}
+	EthChain = NewEthereumChainWithClient(node, testChainID)
 
 	prevNow := now
 	now = func() time.Time { return testNow }
@@ -52,25 +118,33 @@ func newSendFixture(t *testing.T) *sendFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	addr := wallets.NewAddress()
+	addr, err := wallets.NewAddress()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := wallets.AddressDatabase.CreateAddressForWallet(walletId, addr.EOA, addr.PrivateKey, addr.PublicKey); err != nil {
 		t.Fatal(err)
 	}
-	return &sendFixture{key: key, source: addr.EOA}
+	return &sendFixture{key: key, source: addr.EOA, node: node}
+}
+
+// sign sets p's signature from the fixture user's key.
+func (f *sendFixture) sign(t *testing.T, p SendPayload) SendPayload {
+	t.Helper()
+	p.Signature = testutil.SignRSA(t, f.key, sendMessage(&p))
+	return p
 }
 
 // payload returns a correctly signed request with the given request id and expiry.
 func (f *sendFixture) payload(t *testing.T, requestId string, expiry time.Time) SendPayload {
 	t.Helper()
-	p := SendPayload{
+	return f.sign(t, SendPayload{
 		SourceAddress:      f.source,
-		DestinationAddress: "0x0000000000000000000000000000000000000002",
+		DestinationAddress: dest,
 		Amount:             big.NewInt(1000),
 		RequestId:          requestId,
 		Expiry:             expiry.Unix(),
-	}
-	p.Signature = testutil.SignRSA(t, f.key, sendMessage(&p))
-	return p
+	})
 }
 
 func postSend(t *testing.T, p SendPayload) *httptest.ResponseRecorder {
@@ -79,7 +153,13 @@ func postSend(t *testing.T, p SendPayload) *httptest.ResponseRecorder {
 	if err != nil {
 		t.Fatal(err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/wallets/send", bytes.NewReader(body))
+	return postSendRaw(t, string(body))
+}
+
+func postSendRaw(t *testing.T, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/wallets/send", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	req = req.WithContext(middleware.WithEmail(req.Context(), testEmail))
 	rec := httptest.NewRecorder()
 	SendEth(rec, req)
@@ -97,25 +177,100 @@ func TestSendMessageFormat(t *testing.T) {
 	}
 }
 
+func TestSendBuildsDynamicFeeTx(t *testing.T) {
+	f := newSendFixture(t)
+
+	rec := postSend(t, f.payload(t, reqId1, testNow.Add(time.Minute)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+	if len(f.node.sent) != 1 {
+		t.Fatalf("%d transactions sent, want 1", len(f.node.sent))
+	}
+	tx := f.node.sent[0]
+
+	var resp struct {
+		TxnId string `json:"txnid"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&resp); err != nil || resp.TxnId != tx.Hash().Hex() {
+		t.Errorf("txnid = %q (err %v), want %s", resp.TxnId, err, tx.Hash().Hex())
+	}
+
+	wantFeeCap := new(big.Int).Add(new(big.Int).Mul(testBaseFee, big.NewInt(2)), testTip)
+	checks := []struct {
+		field     string
+		got, want interface{}
+	}{
+		{"type", tx.Type(), uint8(types.DynamicFeeTxType)},
+		{"chain id", tx.ChainId().String(), testChainID.String()},
+		{"nonce", tx.Nonce(), uint64(0)},
+		{"tip cap", tx.GasTipCap().String(), testTip.String()},
+		{"fee cap", tx.GasFeeCap().String(), wantFeeCap.String()},
+		{"gas", tx.Gas(), uint64(21000)},
+		{"to", tx.To().Hex(), common.HexToAddress(dest).Hex()},
+		{"value", tx.Value().String(), "1000"},
+		{"data", len(tx.Data()), 0},
+	}
+	for _, c := range checks {
+		if c.got != c.want {
+			t.Errorf("%s = %v, want %v", c.field, c.got, c.want)
+		}
+	}
+
+	sender, err := types.Sender(types.LatestSignerForChainID(testChainID), tx)
+	if err != nil || sender.Hex() != f.source {
+		t.Errorf("signed by %s (err %v), want %s", sender.Hex(), err, f.source)
+	}
+}
+
+func TestConcurrentSendsGetDifferentNonces(t *testing.T) {
+	f := newSendFixture(t)
+	f.node.nonceDelay = 50 * time.Millisecond
+	source := common.HexToAddress(f.source)
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i := range errs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, errs[i] = EthChain.SendEth(context.Background(), source, common.HexToAddress(dest), big.NewInt(1))
+		}()
+	}
+	wg.Wait()
+
+	for _, err := range errs {
+		if err != nil {
+			t.Fatalf("SendEth: %v", err)
+		}
+	}
+	if len(f.node.sent) != 2 {
+		t.Fatalf("%d transactions sent, want 2", len(f.node.sent))
+	}
+	if n0, n1 := f.node.sent[0].Nonce(), f.node.sent[1].Nonce(); n0 == n1 {
+		t.Errorf("both transactions got nonce %d", n0)
+	}
+}
+
 func TestSendRejectsReplay(t *testing.T) {
 	f := newSendFixture(t)
 	p := f.payload(t, reqId1, testNow.Add(time.Minute))
 
-	// First use passes every check and fails only at broadcast (no node)
-	if rec := postSend(t, p); rec.Code != http.StatusInternalServerError {
-		t.Fatalf("first request: status = %d (%s), want 500 from the missing node", rec.Code, rec.Body)
+	if rec := postSend(t, p); rec.Code != http.StatusOK {
+		t.Fatalf("first request: status = %d (%s), want 200", rec.Code, rec.Body)
 	}
 	if rec := postSend(t, p); rec.Code != http.StatusConflict {
 		t.Errorf("replayed request: status = %d (%s), want 409", rec.Code, rec.Body)
 	}
-
-	// A fresh request id is accepted again
-	if rec := postSend(t, f.payload(t, reqId2, testNow.Add(time.Minute))); rec.Code != http.StatusInternalServerError {
-		t.Errorf("fresh request id: status = %d (%s), want 500 from the missing node", rec.Code, rec.Body)
+	if rec := postSend(t, f.payload(t, reqId2, testNow.Add(time.Minute))); rec.Code != http.StatusOK {
+		t.Errorf("fresh request id: status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+	if len(f.node.sent) != 2 {
+		t.Errorf("%d transactions sent, want 2", len(f.node.sent))
 	}
 }
 
-func TestSendRejectsStaleOrMalformed(t *testing.T) {
+func TestSendRejectsStaleRequests(t *testing.T) {
 	f := newSendFixture(t)
 
 	tests := []struct {
@@ -138,8 +293,73 @@ func TestSendRejectsStaleOrMalformed(t *testing.T) {
 	}
 
 	// The boundary itself is allowed
-	if rec := postSend(t, f.payload(t, reqId1, testNow.Add(maxExpiry))); rec.Code == http.StatusBadRequest {
-		t.Errorf("expiry exactly maxExpiry ahead rejected: %s", rec.Body)
+	if rec := postSend(t, f.payload(t, reqId1, testNow.Add(maxExpiry))); rec.Code != http.StatusOK {
+		t.Errorf("expiry exactly maxExpiry ahead: status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+}
+
+func TestSendRejectsInvalidFields(t *testing.T) {
+	f := newSendFixture(t)
+	valid := func() SendPayload { return f.payload(t, reqId1, testNow.Add(time.Minute)) }
+
+	tests := map[string]func(*SendPayload){
+		"source not an address": func(p *SendPayload) { p.SourceAddress = "0x1234" },
+		"dest not an address":   func(p *SendPayload) { p.DestinationAddress = "bob" },
+		"zero amount":           func(p *SendPayload) { p.Amount = big.NewInt(0) },
+		"negative amount":       func(p *SendPayload) { p.Amount = big.NewInt(-5) },
+		"missing amount":        func(p *SendPayload) { p.Amount = nil },
+	}
+	for name, change := range tests {
+		t.Run(name, func(t *testing.T) {
+			p := valid()
+			change(&p)
+			if rec := postSend(t, f.sign(t, p)); rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d (%s), want 400", rec.Code, rec.Body)
+			}
+		})
+	}
+
+	body, _ := json.Marshal(valid())
+	raw := map[string]string{
+		"malformed JSON":  `{"source":`,
+		"amount a string": strings.Replace(string(body), `"amount":1000`, `"amount":"1000"`, 1),
+		"amount fraction": strings.Replace(string(body), `"amount":1000`, `"amount":10.5`, 1),
+		"unknown field":   strings.Replace(string(body), `{`, `{"extra":1,`, 1),
+	}
+	for name, body := range raw {
+		t.Run(name, func(t *testing.T) {
+			if rec := postSendRaw(t, body); rec.Code != http.StatusBadRequest {
+				t.Errorf("status = %d (%s), want 400", rec.Code, rec.Body)
+			}
+		})
+	}
+	if len(f.node.sent) != 0 {
+		t.Errorf("%d transactions sent for invalid requests, want 0", len(f.node.sent))
+	}
+}
+
+func TestSendAcceptsLowercaseAddresses(t *testing.T) {
+	f := newSendFixture(t)
+	p := f.payload(t, reqId1, testNow.Add(time.Minute))
+	p.SourceAddress = strings.ToLower(p.SourceAddress)
+	p.DestinationAddress = strings.ToLower(p.DestinationAddress)
+
+	if rec := postSend(t, f.sign(t, p)); rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+	sender, _ := types.Sender(types.LatestSignerForChainID(testChainID), f.node.sent[0])
+	if sender.Hex() != f.source {
+		t.Errorf("sent from %s, want %s", sender.Hex(), f.source)
+	}
+}
+
+func TestSendRejectsAddressNotOwned(t *testing.T) {
+	f := newSendFixture(t)
+	p := f.payload(t, reqId1, testNow.Add(time.Minute))
+	p.SourceAddress = "0x0000000000000000000000000000000000000003"
+
+	if rec := postSend(t, f.sign(t, p)); rec.Code != http.StatusForbidden {
+		t.Errorf("status = %d (%s), want 403", rec.Code, rec.Body)
 	}
 }
 
@@ -150,6 +370,9 @@ func TestSendRejectsTamperedFields(t *testing.T) {
 		"requestId": func(p *SendPayload) { p.RequestId = reqId2 },
 		"expiry":    func(p *SendPayload) { p.Expiry += 1 },
 		"amount":    func(p *SendPayload) { p.Amount = big.NewInt(9999) },
+		"dest":      func(p *SendPayload) { p.DestinationAddress = "0x0000000000000000000000000000000000000009" },
+		// Same address, different spelling: the signature covers the request as sent
+		"source case": func(p *SendPayload) { p.SourceAddress = strings.ToLower(p.SourceAddress) },
 	}
 	for field, change := range tamper {
 		t.Run(field, func(t *testing.T) {
@@ -171,8 +394,60 @@ func TestBadSignatureDoesNotUseRequestId(t *testing.T) {
 	if rec := postSend(t, forged); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("forged request: status = %d, want 401", rec.Code)
 	}
-	if rec := postSend(t, p); rec.Code == http.StatusConflict {
-		t.Error("request id was used up by a request with a bad signature")
+	if rec := postSend(t, p); rec.Code != http.StatusOK {
+		t.Errorf("genuine request after a forged one: status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+}
+
+func TestSendNodeErrorsAre502(t *testing.T) {
+	tests := map[string]func(*fakeClient){
+		"node down":   func(fc *fakeClient) { fc.err = errors.New("connection refused") },
+		"no base fee": func(fc *fakeClient) { fc.noBaseFee = true },
+	}
+	for name, setup := range tests {
+		t.Run(name, func(t *testing.T) {
+			f := newSendFixture(t)
+			setup(f.node)
+			if rec := postSend(t, f.payload(t, reqId1, testNow.Add(time.Minute))); rec.Code != http.StatusBadGateway {
+				t.Errorf("status = %d (%s), want 502", rec.Code, rec.Body)
+			}
+		})
+	}
+}
+
+func getBalance(address string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/wallets/balance/"+address, nil)
+	req.SetPathValue("address", address)
+	rec := httptest.NewRecorder()
+	GetBalance(rec, req)
+	return rec
+}
+
+func TestGetBalance(t *testing.T) {
+	f := newSendFixture(t)
+
+	rec := getBalance(strings.ToLower(f.source))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s), want 200", rec.Code, rec.Body)
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	var b Balance
+	if err := json.NewDecoder(rec.Body).Decode(&b); err != nil {
+		t.Fatal(err)
+	}
+	if b.Address != f.source || b.Amount.Int64() != 12345 {
+		t.Errorf("balance = %+v, want checksum address and 12345", b)
+	}
+
+	if rec := getBalance("0x1234"); rec.Code != http.StatusBadRequest {
+		t.Errorf("invalid address: status = %d, want 400", rec.Code)
+	}
+
+	f.node.err = errors.New("connection refused")
+	if rec := getBalance(f.source); rec.Code != http.StatusBadGateway {
+		t.Errorf("node down: status = %d, want 502", rec.Code)
 	}
 }
 

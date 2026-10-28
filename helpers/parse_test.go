@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"errors"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -81,6 +82,23 @@ func TestDecodeJSONBodyRejectsBadBodies(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if _, status := decode(t, "application/json", tt.body); status != tt.want {
 				t.Errorf("status = %d, want %d", status, tt.want)
+			}
+		})
+	}
+}
+
+func TestDecodeJSONBodyFieldDecoderErrorIs400(t *testing.T) {
+	// big.Int rejects these itself; that must still be a 400, not a 500
+	for _, body := range []string{`{"amount":"100"}`, `{"amount":1.5}`, `{"amount":1e18}`} {
+		t.Run(body, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+			var dst struct {
+				Amount *big.Int `json:"amount"`
+			}
+			err := DecodeJSONBody(httptest.NewRecorder(), req, &dst)
+			var mr *MalformedRequest
+			if !errors.As(err, &mr) || mr.Status != http.StatusBadRequest {
+				t.Errorf("err = %v, want a 400 MalformedRequest", err)
 			}
 		})
 	}

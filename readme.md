@@ -60,6 +60,22 @@ and at most 5 minutes ahead (a minute or two leaves room for clock skew). Expire
 or a bad `requestId` get a 400, and a `requestId` that was already used gets a 409. (This is
 not the Ethereum transaction nonce, which the server gets from the node.)
 
+`amount` is a positive integer in wei, as a JSON number. `source` and `dest` may be in any
+letter case, but `sig` covers them exactly as written in the request. Responses:
+
+| Status | When |
+|---|---|
+| 200 | Broadcast; the body is `{"txnid": "0x…"}` |
+| 400 | Malformed body, bad address, non-positive amount, bad or expired `requestId`/`expiry` |
+| 401 | Signature doesn't verify |
+| 403 | `source` isn't one of your addresses |
+| 409 | `requestId` already used |
+| 502 | The Ethereum node rejected the transaction or couldn't be reached; the body has its error |
+
+The server sends an EIP-1559 transaction: the tip is the node's suggestion, and the fee cap is
+twice the latest base fee plus the tip. Concurrent sends from one address are serialized,
+so each one gets its own account nonce.
+
 **Look up your registration** (`GET /api/v1/users/{email}`): only your own email; any other
 gets a 403.
 

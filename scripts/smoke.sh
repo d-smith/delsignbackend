@@ -6,6 +6,7 @@
 #   register key -> look up own record -> create wallet -> create two addresses
 #   -> fund the first from the node -> send ETH to the second through the API
 #   -> check the balance -> replay the send (must get 409)
+#   -> two concurrent sends from one address (both must be mined)
 #   -> import Anvil dev account 9 with import-key -> send from it.
 #
 # Needs a running dev node with unlocked, funded accounts (Anvil, Hardhat, ...):
@@ -210,6 +211,21 @@ balance=$(api GET "/wallets/balance/$DEST" | jq -r .amount)
 
 step "replay the same signed request"
 expect_status 409 POST /wallets/send "$send"
+
+step "two concurrent sends from source (need different account nonces)"
+pids=()
+for i in 1 2; do
+	curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+		--data "$(send_body "$SOURCE" "$DEST" 1)" -o "$WORK/par$i" -w '%{http_code}' \
+		"$API/wallets/send" >"$WORK/par$i.status" &
+	pids+=($!)
+done
+# Wait for the two requests only; a bare wait would also wait for the server
+wait "${pids[@]}"
+for i in 1 2; do
+	[[ $(cat "$WORK/par$i.status") == 200 ]] || fail "concurrent send $i: HTTP $(cat "$WORK/par$i.status"): $(cat "$WORK/par$i")"
+	wait_receipt "$(jq -r .txnid "$WORK/par$i")"
+done
 
 if rpc eth_accounts '[]' | jq -e --arg a "${IMPORT_ADDRESS,,}" 'map(ascii_downcase) | index($a)' >/dev/null; then
 	step "import Anvil account 9 with import-key and send from it"

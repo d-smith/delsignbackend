@@ -328,7 +328,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 4 — Robustness fixes
 
-- [ ] **T4.1 Handle every error.** Check the address insert in `CreateAddressForWallet`, the
+- [x] **T4.1 Handle every error.** Check the address insert in `CreateAddressForWallet`, the
   `SuggestGasPrice` error, the public-key parse in `chain.validateSignature`, and the
   signature hex decode in `validateKeyReg`. Check the public-key types (assert with `ok`).
   *Accept:* a test for each malformed input gets a 4xx response, not a 500 or a panic.
@@ -336,19 +336,57 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   *Partly done in T3.3/T3.4:* `users.VerifySignature` now handles the public-key parse and
   type check and the signature hex decode, for both keyreg and send, and the skip is
   removed. Left: the address insert in `CreateAddressForWallet` and `SuggestGasPrice`.
-- [ ] **T4.2 Input validation.** Check addresses with `common.IsHexAddress` and normalize
+  *Done:* the address insert error → 500 (it used to answer 201 regardless). `SuggestGasPrice`
+  is gone (T4.4); every node call's error is checked. Also found and fixed:
+  - `ListWallets` and `WalletsAndAddressesForUser` never closed their rows, which leaked a
+    connection per call. They now close them and check `rows.Err()`.
+  - `UserOwnsWallet`/`UserOwnsAddress` return `(bool, error)` using `EXISTS`; a DB error used
+    to look like "not owned".
+  - `NewAddress` returns an error instead of `log.Fatal`, and the unneeded public-key type
+    assertion (another `log.Fatal`) is gone.
+  - `DecodeJSONBody` answered errors from a field's own decoder (e.g. `"amount": "100"`) with
+    500; they are now 400.
+  - New `helpers.WriteJSON` logs response encode errors (convention: every error handled).
+  Tests: insert failure → generic 500; wallet id not a number/zero/negative → 400; field
+  decoder errors → 400.
+- [x] **T4.2 Input validation.** Check addresses with `common.IsHexAddress` and normalize
   them to checksum form before DB lookups; require `amount` > 0; decode the send body with
   `DecodeJSONBody`. *Accept:* a lowercase source address that the user owns is accepted;
   invalid input → 400.
-- [ ] **T4.3 Status codes.** GET handlers return 200 and the balance response sets a JSON
+  *Done:* `checkFields` checks both addresses with `IsHexAddress` and requires a positive
+  amount; ownership and key lookups use the checksum form. **The signature is verified over
+  the addresses exactly as sent** (not normalized), so a client that signs lowercase works,
+  and changing the case after signing breaks the signature. The balance endpoint validates
+  its address too and returns it in checksum form. Tests: lowercase source and dest → 200
+  and sent from the right key; bad source/dest, zero/negative/missing/string/fractional
+  amount, malformed JSON, unknown field → 400 with nothing sent; case-changed source → 401.
+- [x] **T4.3 Status codes.** GET handlers return 200 and the balance response sets a JSON
   Content-Type. Decode failures → 400 instead of 500. Ownership failures → 403 or 404
   (agreed in review). *Accept:* tests check the status codes.
-- [ ] **T4.4 EIP-1559 transactions (D9).** Switch `SendEth` to `DynamicFeeTx` behind the
+  *Done:* chose **403** for anything not yours, whether or not it exists (wallet, source
+  address), matching T3.5's user lookup; this doesn't reveal what exists. Send from an
+  address that isn't yours: was 401 "Invalid signature", now 403. `GET /wallets` 201 → 200.
+  Balance: JSON Content-Type, 200. Node failures (balance, send) → **502** with the node's
+  message, since it's useful to the client ("insufficient funds…"). Other 500s send a generic
+  body; the details are logged. Readme has a status table for send.
+- [x] **T4.4 EIP-1559 transactions (D9).** Switch `SendEth` to `DynamicFeeTx` behind the
   chain interface. *Accept:* manual smoke test passes; a unit test with a fake client checks
   the fields of the transaction it builds.
-- [ ] **T4.5 Concurrent sends from one address.** Serialize sends per source address with an
+  *Done:* `chain.Client` interface (five methods; `*ethclient.Client` implements it) and
+  `NewEthereumChainWithClient`. `SendEth` takes a context (the request's) and parsed
+  addresses, and builds a `DynamicFeeTx`: tip = `SuggestGasTipCap`, fee cap = 2 × latest
+  base fee + tip, gas 21000, signed with `LatestSignerForChainID`. A node without a base fee
+  → 502. Node errors are wrapped in `ErrNode`. The fake client test checks type, chain ID,
+  nonce, tip, fee cap, gas, to, value, empty data, the recovered sender, and that `txnid`
+  is the hash. Smoke: passes; the transactions on Anvil are type `0x2`.
+- [x] **T4.5 Concurrent sends from one address.** Serialize sends per source address with an
   in-process lock, so two parallel requests don't get the same Ethereum account nonce.
   *Accept:* the test fires two concurrent sends and gets two different account nonces.
+  *Done:* `sync.Map` of per-address mutexes, held from the nonce lookup through the
+  broadcast. The test uses a fake node with a 50 ms nonce delay; with the lock taken out it
+  fails ("both transactions got nonce 0"), and with it, it passes under `-race`. The smoke
+  script also fires two parallel sends from one address on Anvil and requires both to be mined.
+  Limits: the lock is per process (one server only), and entries are never removed.
 
 ### Phase 5 — Close-out
 
@@ -419,6 +457,13 @@ _No open questions._
   in that form, so the two agree.
 - 2026-10-27 (T3.2): `import-key` loads the full config, so it also needs
   `DELSIGN_JWT_SECRET`. Not worth a separate config path for a dev command.
+- 2026-10-27 (Phase 4): Done as one change at the user's request.
+- 2026-10-27 (T4.3): Ownership failures are 403 (not 404), whether the resource exists or not.
+- 2026-10-27 (T4.5): Send serialization is in-process only. Running more than one server
+  instance would need a shared lock or nonce manager. → roadmap candidate.
+- 2026-10-27 (T4.4): The fee cap of 2 × base fee + tip is the usual default. Not tuned, and
+  no gas-limit estimate, because we only send plain transfers. → roadmap candidate
+  (contract calls or ERC-20 would need `EstimateGas`).
 - 2026-10-27 (T2.3): Existing handler status codes are still wrong in the places T4.3
   lists: user lookup of an unknown email → 500, send with a bad body → 500, `GET /wallets`
-  → 201. Seen in the route tests; left for T4.1/T4.3. (User lookup fixed in T3.5.)
+  → 201. Seen in the route tests; left for T4.1/T4.3. (User lookup fixed in T3.5, the rest in T4.2/T4.3.)

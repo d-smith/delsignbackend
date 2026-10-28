@@ -10,7 +10,6 @@ import (
 	"delsignbackend/helpers"
 	"delsignbackend/middleware"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -33,13 +32,7 @@ func KeyRegCreate(w http.ResponseWriter, r *http.Request) {
 
 	err := helpers.DecodeJSONBody(w, r, &kr)
 	if err != nil {
-		var mr *helpers.MalformedRequest
-		if errors.As(err, &mr) {
-			http.Error(w, mr.Msg, mr.Status)
-		} else {
-			log.Print(err.Error())
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+		helpers.WriteDecodeError(w, err)
 		return
 	}
 
@@ -55,7 +48,7 @@ func KeyRegCreate(w http.ResponseWriter, r *http.Request) {
 		log.Print("KeyReg validated - store first key")
 		err = UserDatabase.NewUserReg(&kr)
 	case err != nil:
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		helpers.ServerError(w, err)
 		return
 	default:
 		// Replacing a key: a JWT alone must not be enough, or a stolen token
@@ -72,7 +65,7 @@ func KeyRegCreate(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, ErrKeyChanged):
 		http.Error(w, err.Error(), http.StatusConflict)
 	case err != nil:
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		helpers.ServerError(w, err)
 	}
 }
 
@@ -167,12 +160,9 @@ func GetUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+		helpers.ServerError(w, err)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(userInfo)
-
+	helpers.WriteJSON(w, http.StatusOK, userInfo)
 }

@@ -3,8 +3,8 @@ package wallets
 import (
 	"crypto/ecdsa"
 	"database/sql"
+	"delsignbackend/helpers"
 	"delsignbackend/middleware"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -109,35 +109,21 @@ func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {
 	return crypto.PubkeyToAddress(*publicKey).Hex()
 }
 
-func NewAddress() *Address {
+// NewAddress generates a fresh key pair.
+func NewAddress() (*Address, error) {
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	return addressFromKey(privateKey)
+	return addressFromKey(privateKey), nil
 }
 
 func addressFromKey(privateKey *ecdsa.PrivateKey) *Address {
-	privateKeyBytes := crypto.FromECDSA(privateKey)
-
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		log.Fatal("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
-	}
-
-	publicKeyBytes := crypto.FromECDSAPub(publicKeyECDSA)
-	log.Println("Public Key:", hexutil.Encode(publicKeyBytes))
-
-	log.Println("Generating address")
-	address := EOAFromPublicKey(publicKey.(*ecdsa.PublicKey))
-	log.Printf("Generated address %s\n", address)
-
 	return &Address{
-		EOA:        address,
-		PrivateKey: hexutil.Encode(privateKeyBytes),
-		PublicKey:  hexutil.Encode(publicKeyBytes),
+		EOA:        EOAFromPublicKey(&privateKey.PublicKey),
+		PrivateKey: hexutil.Encode(crypto.FromECDSA(privateKey)),
+		PublicKey:  hexutil.Encode(crypto.FromECDSAPub(&privateKey.PublicKey)),
 	}
 }
 
@@ -149,40 +135,39 @@ func CreateAddressForWallet(rw http.ResponseWriter, r *http.Request) {
 	// Get the user email from the jwt claims
 	email, ok := middleware.EmailFromContext(r.Context())
 	if !ok {
-		http.Error(rw, "Missing email", 403)
+		http.Error(rw, "Missing email", http.StatusForbidden)
 		return
 	}
 
-	// Check there us a wallet with the given id for this user
-	walletId := r.PathValue("id")
-	if walletId == "" {
-		http.Error(rw, "Missing wallet id", 403)
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		http.Error(rw, "Invalid wallet id", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Check user owns wallet %s\n", walletId)
-	id, err := strconv.Atoi(walletId)
+	// Check there is a wallet with the given id for this user
+	owns, err := WalletsDatabase.UserOwnsWallet(email, id)
 	if err != nil {
-		http.Error(rw, "Invalid wallet id", 403)
+		helpers.ServerError(rw, err)
+		return
+	}
+	if !owns {
+		http.Error(rw, "Wallet is not yours", http.StatusForbidden)
 		return
 	}
 
-	if WalletsDatabase.UserOwnsWallet(email, id) == false {
-		http.Error(rw, "Invalid wallet id", 403)
+	// Generate a new address and store it
+	address, err := NewAddress()
+	if err != nil {
+		helpers.ServerError(rw, err)
 		return
 	}
-
-	// Generate new address
-	address := NewAddress()
-	log.Printf("New address %s\n", address.EOA)
-
-	// Store it
 	err = AddressDatabase.CreateAddressForWallet(id, address.EOA, address.PrivateKey, address.PublicKey)
+	if err != nil {
+		helpers.ServerError(rw, err)
+		return
+	}
+	log.Printf("New address %s in wallet %d\n", address.EOA, id)
 
-	//Return the EOA
-	eoa := EOA{EOA: address.EOA}
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusCreated)
-	json.NewEncoder(rw).Encode(eoa)
-
+	helpers.WriteJSON(rw, http.StatusCreated, EOA{EOA: address.EOA})
 }
