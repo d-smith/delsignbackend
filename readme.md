@@ -68,7 +68,8 @@ claim; tokens without `exp`, expired tokens, and other algorithms get a 403.
 
 Errors are plain text. 400 means a malformed request, 403 a missing or bad token or a
 resource that isn't yours, and 502 an error from the Ethereum node. Request bodies must be
-JSON with exactly the documented fields; unknown fields get a 400.
+JSON with exactly the documented fields; unknown fields get a 400. There's a curl example for
+each endpoint [below](#calling-the-api-with-curl).
 
 
 ## Signing protocol
@@ -116,6 +117,109 @@ letter case, but `sig` covers them exactly as written in the request. Responses:
 The server sends an EIP-1559 transaction: the tip is the node's suggestion, and the fee cap is
 twice the latest base fee plus the tip. Concurrent sends from one address are serialized,
 so each one gets its own account nonce.
+
+
+## Calling the API with curl
+
+These examples assume the server is running as in the [quick start](#quick-start), in the
+same shell (they use `DELSIGN_JWT_SECRET`), with `curl` and `openssl` installed.
+`scripts/smoke.sh` runs the same flow from start to finish.
+
+**Setup.** Make a token, standing in for the identity provider, and an RSA key for signing:
+
+```bash
+API=http://localhost:3010/api/v1
+EMAIL=a@example.com
+
+# HS256 JWT with an email claim, valid for an hour
+b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url)
+claims=$(printf '{"email":"%s","exp":%d}' "$EMAIL" $(($(date +%s) + 3600)) | b64url)
+jwtsig=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -hmac "$DELSIGN_JWT_SECRET" -binary | b64url)
+TOKEN=$header.$claims.$jwtsig
+
+# RSA key; sign KEYFILE MESSAGE prints a hex PKCS #1 v1.5 SHA-256 signature
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out user.pem
+hex() { od -An -v -tx1 | tr -d ' \n'; }
+sign() { printf '%s' "$2" | openssl dgst -sha256 -sign "$1" | hex; }
+PUBKEY=$(openssl pkey -in user.pem -pubout -outform DER | hex)
+```
+
+**Check the token** (`GET /authping`):
+
+```bash
+curl -i -H "Authorization: Bearer $TOKEN" $API/authping
+```
+
+**Register a key** (`POST /keyreg`):
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"pubkey\":\"$PUBKEY\",\"sig4reg\":\"$(sign user.pem "$EMAIL")\"}" \
+  $API/keyreg
+```
+
+**Replace the key** (`POST /keyreg` with `sig4rotate`). The new key signs the email; the
+current key signs the email plus the new key:
+
+```bash
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out new.pem
+NEWPUBKEY=$(openssl pkey -in new.pem -pubout -outform DER | hex)
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"pubkey\":\"$NEWPUBKEY\",\"sig4reg\":\"$(sign new.pem "$EMAIL")\",\"sig4rotate\":\"$(sign user.pem "$EMAIL$NEWPUBKEY")\"}" \
+  $API/keyreg
+mv new.pem user.pem
+```
+
+**Look up your registration** (`GET /users/{email}`):
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" $API/users/$EMAIL
+```
+
+**Create a wallet** (`POST /wallets`), then **list your wallets** (`GET /wallets`):
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" $API/wallets
+curl -H "Authorization: Bearer $TOKEN" $API/wallets
+```
+
+**Create an address** (`POST /wallets/{id}/addresses`) in wallet 1; run it twice to have a
+source and a destination:
+
+```bash
+curl -X POST -H "Authorization: Bearer $TOKEN" $API/wallets/1/addresses
+```
+
+**List your wallets and addresses** (`GET /walletctx`):
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" $API/walletctx
+```
+
+**Check a balance** (`GET /wallets/balance/{address}`). Fund the source first with
+`cast send` (see [Dev chain](#dev-chain)):
+
+```bash
+SOURCE=0x…   # an address from walletctx
+DEST=0x…     # any address
+curl -H "Authorization: Bearer $TOKEN" $API/wallets/balance/$SOURCE
+```
+
+**Send ETH** (`POST /wallets/send`). Each request needs a new `REQUEST_ID` and `EXPIRY`, so
+rerun all of the lines below for every send; resending the same body gets a 409:
+
+```bash
+AMOUNT=1000
+REQUEST_ID=$(uuidgen)   # without uuidgen: cat /proc/sys/kernel/random/uuid
+EXPIRY=$(($(date +%s) + 120))
+SIG=$(sign user.pem "$SOURCE$DEST$AMOUNT$REQUEST_ID$EXPIRY")
+curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d "{\"source\":\"$SOURCE\",\"dest\":\"$DEST\",\"amount\":$AMOUNT,\"requestId\":\"$REQUEST_ID\",\"expiry\":$EXPIRY,\"sig\":\"$SIG\"}" \
+  $API/wallets/send
+```
+
+The response is `{"txnid": "0x…"}`; `cast receipt <txnid>` shows the mined transaction.
 
 
 ## Dev chain
