@@ -1,6 +1,6 @@
 # 01 — Dependency True-Up and Hardening Plan
 
-- **Status:** Agreed (2026-10-23)
+- **Status:** Complete (2026-10-28). Agreed 2026-10-23.
 - **Branch:** `feature/refresh`
 - **Created:** 2026-10-23
 
@@ -231,7 +231,7 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
   error. `helpers/parse_test.go`: 8 Content-Type cases (no header, parameters, mixed case,
   look-alike type, malformed) and 7 bad-body cases (empty, syntax, truncated, wrong type,
   unknown field, two objects, over 1 MB → 413).
-- [ ] **T2.3 Move to the standard library `ServeMux`; harden the server (D8).** Rewrite the
+- [x] **T2.3 Move to the standard library `ServeMux`; harden the server (D8).** Rewrite the
   routes in `main.go` as method+path patterns on one `http.ServeMux`, and switch handlers
   from `mux.Vars` to `r.PathValue`. Add logging and recovery middleware, and apply the auth
   middleware to each protected route. Run `http.Server` with `ReadHeaderTimeout`,
@@ -390,15 +390,28 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 5 — Close-out
 
-- [ ] **T5.1 Docs.** Update the readme: config variables, how the DB is created now, the new
+- [x] **T5.1 Docs.** Update the readme: config variables, how the DB is created now, the new
   signing format, the smoke-test script, and the Anvil setup.
-- [ ] **T5.2 Roadmap.** Create `plan/roadmap.md` listing known limitations and deferred work,
+  *Done:* most of it landed with each task. The close-out pass restructured the readme and
+  added: an intro on how delegated signing works, a quick start, an endpoint table with
+  success codes, a Development section (gates, test approach, layout, planning), and an
+  up-to-date smoke-test description. Removed the stale Ganache-era address list from the DB
+  section (`GET /walletctx` covers it) and noted that schema changes need a new DB file.
+- [x] **T5.2 Roadmap.** Create `plan/roadmap.md` listing known limitations and deferred work,
   each with a short reason and a pointer to where it came from. At least: key recovery and
   rotation without the current key (D5); the items marked out of scope in §1 (HSM/KMS custody,
   rate limiting, migrations framework, address book, ERC-20); and anything recorded in §8
   during execution. *Accept:* every deferred item in this plan appears in the roadmap.
-- [ ] **T5.3 Final verification.** Run the full gates and `govulncheck` again, and compare
+  *Done:* `plan/roadmap.md` has 20 items in six groups (security and custody, multiple
+  instances, data, Ethereum, API and protocol, dependencies), each with its source. It
+  covers D5, everything in §1's out-of-scope list, and every "→ roadmap candidate" and
+  limitation in §7/§8, plus four found in the close-out review: no rotation for
+  `DELSIGN_KEY_ENC_KEY`, no JWT `iss`/`aud` checks, chatty unstructured logs that include
+  emails, and empty lists returned as `null`. The frontend follow-up lists every breaking
+  change from this plan.
+- [x] **T5.3 Final verification.** Run the full gates and `govulncheck` again, and compare
   with the baseline from T0.1. Record the result in §8.
+  *Done:* all gates pass; the comparison is in §8 (2026-10-28).
 
 ## 8. Open questions and notes
 
@@ -458,6 +471,20 @@ _No open questions._
 - 2026-10-27 (T3.2): `import-key` loads the full config, so it also needs
   `DELSIGN_JWT_SECRET`. Not worth a separate config path for a dev command.
 - 2026-10-27 (Phase 4): Done as one change at the user's request.
+- 2026-10-28 (Phase 5): Done as one change at the user's request.
+- 2026-10-28 (T5.3): **Final verification**, on `a11f857` plus the Phase 5 docs, Go 1.27.3.
+
+  | | Baseline (T0.1, Go 1.26.5) | Final |
+  |---|---|---|
+  | govulncheck v1.9.0: called / imported / required | 24 / 7 / 27 | **0 / 0 / 0** (vuln DB of 2026-10-27) |
+  | Direct dependencies | 6 (go-ethereum, jwt v3, gddo, gorilla/mux, negroni, go-sqlite3) | 3 (go-ethereum v1.17.10, jwt/v5 v5.3.1, go-sqlite3 v1.14.52) |
+  | Modules in graph / with updates | 166 / 136 | 184 / 98 (none in the build; see roadmap) |
+  | Unmaintained modules | gddo, jwt v3 | none |
+  | Tests | none | 56 top-level tests in 7 packages, pass with `-race` |
+  | Smoke test (`scripts/smoke.sh`, anvil 1.8.6) | none | PASS: all 12 steps |
+
+  `go build`, `go vet`, `gofmt -l` clean. Every task in §7 is done; everything deferred is
+  in `plan/roadmap.md`.
 - 2026-10-27 (T4.3): Ownership failures are 403 (not 404), whether the resource exists or not.
 - 2026-10-27 (T4.5): Send serialization is in-process only. Running more than one server
   instance would need a shared lock or nonce manager. → roadmap candidate.
