@@ -7,7 +7,7 @@ a decision (D*n*) or task (T*n.n*) in [01-true-up-plan.md](01-true-up-plan.md), 
 Keep this file current. When a plan defers something, add it here; when a later plan picks
 an item up, move it to that plan and delete it here.
 
-_Last updated: 2026-10-28, at the close of plan 01._
+_Last updated: 2026-10-29, at the close of plan 02._
 
 
 ## Security and key custody

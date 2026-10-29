@@ -1,6 +1,6 @@
 # 02 — Client-Safe API and Agent-Consumable Docs
 
-- **Status:** Agreed 2026-10-29. In progress.
+- **Status:** Complete (2026-10-29). Agreed 2026-10-29.
 - **Branch:** `feature/refresh`
 - **Created:** 2026-10-29
 
@@ -194,7 +194,20 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 3 — Close-out
 
-- [ ] **T3.1 Roadmap and gates.** Update the roadmap; full gates; record results here.
+- [x] **T3.1 Roadmap and gates.** Update the roadmap; full gates; record results here.
+  *Done:* the roadmap is current. During the plan it gained JSON error bodies, the MCP docs
+  server, CORS and idempotent send replay; the `null` lists item was removed, and the
+  frontend's breaking-change list gained D1 and D2. Results, compared with the close of plan 01:
+
+  | | Plan 01 close | Now |
+  |---|---|---|
+  | govulncheck v1.9.0 | 0 / 0 / 0 | 0 / 0 / 0 |
+  | Direct dependencies | 3 | 4 (`gopkg.in/yaml.v3`, test-only, already in the graph) |
+  | Modules in graph | 184 | 184 |
+  | Top-level tests | 56 | 64, passing with `-race` |
+  | Smoke (Anvil 1.8.6) | PASS | PASS |
+
+  Still open: the one-off vacuum lint of `openapi.yaml` (see T2.1), for the user to run.
 
 ## 8. Open questions and notes
 
