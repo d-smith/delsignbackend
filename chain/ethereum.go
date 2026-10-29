@@ -158,7 +158,7 @@ func GetBalance(rw http.ResponseWriter, r *http.Request) {
 }
 
 // SendPayload is a signed send request. Sig is the user's RSA signature over
-// source+dest+amount+requestId+expiry (see sendMessage). RequestId is a
+// source+dest+amount+requestId+expiry (see SendMessage). RequestId is a
 // client-chosen UUID and Expiry a Unix time at most maxExpiry ahead; together
 // they stop a captured request from being replayed.
 type SendPayload struct {
@@ -244,11 +244,12 @@ func SendEth(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var txnContext struct {
-		TxnId string `json:"txnid"`
-	}
-	txnContext.TxnId = txnid
-	helpers.WriteJSON(rw, http.StatusOK, txnContext)
+	helpers.WriteJSON(rw, http.StatusOK, SendResult{TxnId: txnid})
+}
+
+// SendResult is the response to a successful send: the transaction hash.
+type SendResult struct {
+	TxnId string `json:"txnid"`
 }
 
 // checkFields checks the addresses and amount, and returns the addresses parsed.
@@ -281,9 +282,9 @@ func checkFreshness(payload *SendPayload, now time.Time) error {
 	return nil
 }
 
-// sendMessage is the message the user signs for a send request. Wei only
+// SendMessage is the message the user signs for a send request. Wei only
 // accepts canonical decimal strings, so the amount here is the string sent.
-func sendMessage(payload *SendPayload) string {
+func SendMessage(payload *SendPayload) string {
 	return fmt.Sprintf("%s%s%s%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount, payload.RequestId, payload.Expiry)
 }
 
@@ -294,5 +295,5 @@ func verifySendSignature(email string, payload *SendPayload) error {
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	return users.VerifySignature(userInfo.PubKey, sendMessage(payload), payload.Signature)
+	return users.VerifySignature(userInfo.PubKey, SendMessage(payload), payload.Signature)
 }

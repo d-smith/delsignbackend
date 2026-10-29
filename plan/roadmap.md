@@ -78,7 +78,16 @@ _Last updated: 2026-10-28, at the close of plan 01._
   - wei amounts are decimal strings, in sends and balances (plan 02, D1);
   - empty lists are `[]`, not `null` (plan 02, D2).
 
-  The frontend is outside this repo. *Source: §1, D4; plan 02.*
+  The frontend is outside this repo. `docs/api/client-guide.md` lists these changes for
+  client developers. *Source: §1, D4; plan 02.*
+- **No CORS support.** The server sends no CORS headers and answers preflight `OPTIONS`
+  requests with a 405, so a browser app must reach it from the same origin (a dev-server
+  proxy, or a reverse proxy in production). The client guide says so. Adding CORS means
+  an allowed-origins setting and handling `OPTIONS` before auth. *Source: plan 02, T2.3.*
+- **A replayed send can't report what happened.** The `requestId` is recorded before the
+  broadcast, so a client retrying after a lost response gets a 409 without the original
+  `txnid`, and after a 502 the id is used up. Storing the outcome with the request id, and
+  returning it on a replay, would make retries idempotent. *Source: plan 02, T2.3.*
 - **No clock-skew allowance on `expiry`.** A request is accepted only if
   `now < expiry ≤ now + 5 min`; the readme tells clients to use 1–2 minutes. Relax it only
   if clients see rejections in practice. *Source: T3.4.*

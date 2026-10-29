@@ -71,6 +71,13 @@ resource that isn't yours, and 502 an error from the Ethereum node. Request bodi
 JSON with exactly the documented fields; unknown fields get a 400. There's a curl example for
 each endpoint [below](#calling-the-api-with-curl).
 
+**Writing a client?** [docs/api/](docs/api/README.md) has the OpenAPI 3.1 spec, a client
+guide (WebCrypto signing, flows, errors and retries), and signing test vectors. These are
+written so that coding agents in a client repo can use them too.
+`scripts/export-client-docs.sh <client-repo>` copies them there with a `VERSION` stamp. Tests
+(`apidocs_test.go`) fail if the spec or vectors drift from the code. After changing a message
+format, regenerate the vectors with `go test -run TestVectors -update-vectors .`.
+
 
 ## Signing protocol
 
@@ -305,7 +312,8 @@ the node and server port; `SMOKE_KEEP=1` keeps the temp directory with the DB an
 
 **Layout.** `main.go` (routes, server, `import-key`), `config/`, `db/` (schema), `middleware/`
 (auth, logging, recovery), `users/` (RSA keys), `wallets/` (wallets, addresses, key
-encryption), `chain/` (balance, send, replay protection), `helpers/` (JSON in and out).
+encryption), `chain/` (balance, send, replay protection, wei amounts), `helpers/` (JSON in
+and out), `docs/api/` (client docs, checked by `apidocs_test.go`).
 
 **Planning.** Work is planned in `plan/`: numbered plan files, plus
 [roadmap.md](plan/roadmap.md) for known limitations and deferred work.

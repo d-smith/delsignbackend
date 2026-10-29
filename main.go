@@ -24,22 +24,31 @@ func authPingHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Auth ping")
 }
 
+// apiRoutes lists every API endpoint. Tests check docs/api/openapi.yaml
+// against it, so a route added here must be added to the spec too.
+var apiRoutes = []struct {
+	pattern string
+	handler http.HandlerFunc
+}{
+	{"GET /api/v1/users/{email}", users.GetUser},
+	{"GET /api/v1/authping", authPingHandler},
+	{"POST /api/v1/keyreg", users.KeyRegCreate},
+	{"POST /api/v1/wallets", wallets.WalletCreate},
+	{"GET /api/v1/wallets", wallets.GetWallets},
+	{"POST /api/v1/wallets/{id}/addresses", wallets.CreateAddressForWallet},
+	{"GET /api/v1/walletctx", wallets.GetWalletAndAddressesForUser},
+	{"GET /api/v1/wallets/balance/{address}", chain.GetBalance},
+	{"POST /api/v1/wallets/send", chain.SendEth},
+}
+
 // NewRouter returns the HTTP handler for the API. Every route needs a valid
 // bearer token.
 func NewRouter(jwtSecret string) http.Handler {
 	auth := middleware.NewAuthzMiddleWare(jwtSecret)
 	mux := http.NewServeMux()
-
-	mux.Handle("GET /api/v1/users/{email}", auth(http.HandlerFunc(users.GetUser)))
-	mux.Handle("GET /api/v1/authping", auth(http.HandlerFunc(authPingHandler)))
-	mux.Handle("POST /api/v1/keyreg", auth(http.HandlerFunc(users.KeyRegCreate)))
-	mux.Handle("POST /api/v1/wallets", auth(http.HandlerFunc(wallets.WalletCreate)))
-	mux.Handle("GET /api/v1/wallets", auth(http.HandlerFunc(wallets.GetWallets)))
-	mux.Handle("POST /api/v1/wallets/{id}/addresses", auth(http.HandlerFunc(wallets.CreateAddressForWallet)))
-	mux.Handle("GET /api/v1/walletctx", auth(http.HandlerFunc(wallets.GetWalletAndAddressesForUser)))
-	mux.Handle("GET /api/v1/wallets/balance/{address}", auth(http.HandlerFunc(chain.GetBalance)))
-	mux.Handle("POST /api/v1/wallets/send", auth(http.HandlerFunc(chain.SendEth)))
-
+	for _, route := range apiRoutes {
+		mux.Handle(route.pattern, auth(route.handler))
+	}
 	return middleware.Logging(middleware.Recovery(mux))
 }
 

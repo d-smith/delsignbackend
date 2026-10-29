@@ -131,7 +131,7 @@ func newSendFixture(t *testing.T) *sendFixture {
 // sign sets p's signature from the fixture user's key.
 func (f *sendFixture) sign(t *testing.T, p SendPayload) SendPayload {
 	t.Helper()
-	p.Signature = testutil.SignRSA(t, f.key, sendMessage(&p))
+	p.Signature = testutil.SignRSA(t, f.key, SendMessage(&p))
 	return p
 }
 
@@ -172,8 +172,8 @@ const reqId2 = "0d4f6a2b-9c8e-4f71-b3a5-6e2d1c0b9a87"
 func TestSendMessageFormat(t *testing.T) {
 	p := SendPayload{SourceAddress: "0xA", DestinationAddress: "0xB", Amount: Wei{big.NewInt(42)}, RequestId: reqId1, Expiry: 1800000060}
 	want := "0xA0xB42" + reqId1 + "1800000060"
-	if got := sendMessage(&p); got != want {
-		t.Errorf("sendMessage = %q, want %q", got, want)
+	if got := SendMessage(&p); got != want {
+		t.Errorf("SendMessage = %q, want %q", got, want)
 	}
 }
 

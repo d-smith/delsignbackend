@@ -136,19 +136,61 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ### Phase 2 — Client docs
 
-- [ ] **T2.1 OpenAPI spec (D3) + route drift test (D5 a, b).** Move the route list into a
+- [x] **T2.1 OpenAPI spec (D3) + route drift test (D5 a, b).** Move the route list into a
   table that `NewRouter` uses. *Accept:* the spec validates as OpenAPI 3.1 (checked once
   with a linter, recorded here); the drift tests pass, and fail when a route is added to the
   table but not the spec.
-- [ ] **T2.2 Test vectors (D4, D5 c).** Generator plus a test that checks them.
+  *Done:* `docs/api/openapi.yaml` covers all 9 operations, with every status code each
+  handler can return, shared `components.responses` for auth, 413, 415, 500 and 502, and
+  `additionalProperties: false` on every object schema. `main.go` now registers routes from
+  `apiRoutes`. `apidocs_test.go` checks:
+  - routes match the spec (`TestOpenAPIMatchesRoutes`);
+  - each object schema's properties and `required` match its Go type's JSON fields and
+    omitempty (`TestOpenAPISchemasMatchGoTypes`);
+  - request and response examples decode into the Go types with unknown fields disallowed
+    (`TestOpenAPIExamplesDecode`);
+  - every `$ref` resolves (`TestOpenAPIRefsResolve`);
+  - the keyreg and send request examples are the test-vector bodies
+    (`TestOpenAPIExamplesAreVectors`).
+
+  Each was shown to fail by breaking it on purpose: an extra route, a renamed property, an
+  unknown example field, a broken `$ref`. Small refactors for the tests: `chain.SendMessage`
+  is exported, `users.RotationMessage` is added (and used by `validateRotation`), and the
+  send response is a named type, `chain.SendResult`. `gopkg.in/yaml.v3` v3.0.1 is now a
+  direct requirement; it was already in the graph, which is still 184 modules.
+  **Linter run outstanding:** running vacuum (`go run github.com/daveshanley/vacuum@v0.36.0
+  lint -d docs/api/openapi.yaml`) was blocked by this session's permissions, so the user
+  runs it. Until then, the structural checks above stand in.
+- [x] **T2.2 Test vectors (D4, D5 c).** Generator plus a test that checks them.
   *Accept:* the test fails if a vector is edited by hand; vectors verify with
   `users.VerifySignature` and the send message builder.
-- [ ] **T2.3 Client guide.** In browser terms: WebCrypto keys, the message strings,
+  *Done:* `docs/api/test-vectors.json` has two published test keys (SPKI and PKCS #8 hex) and
+  5 vectors: register, rotate, send, send with lowercase addresses (a different signature),
+  and send with an amount over 2⁵³. `go test -run TestVectors -update-vectors .` regenerates
+  them, keeping the keys; regeneration gives identical bytes. `TestVectors` fails on any
+  difference from the generator's output (checked by editing one character). It also checks
+  that each signature is in the body, verifies with `users.VerifySignature`, and signs the
+  message the server rebuilds from the decoded body. openssl reproduces all 6 signatures
+  and both public keys from the published keys, so a second implementation agrees.
+- [x] **T2.3 Client guide.** In browser terms: WebCrypto keys, the message strings,
   request id and expiry, full flows (register, rotate, send), and errors. *Accept:* every
   value in its examples comes from the test vectors, and it tells the frontend to
   test against them first.
-- [ ] **T2.4 Index and export (D6).** `docs/api/README.md`, `scripts/export-client-docs.sh`, a
+  *Done:* `docs/api/client-guide.md` covers: how it works; connecting (same origin only, see
+  §8); the encoding rules; WebCrypto key generation, export, signing and storage, with the
+  lost-key warning; register, rotate, wallets, balance (BigInt) and send flows; an error table
+  with what the UI should do; retry rules for sends; a Vitest test against the vectors; and
+  the breaking changes since the old API. Example values match the vectors, and the
+  send/rotate messages in the Vitest example are checked against them. The TypeScript was
+  not run (there's no JS runtime here); the vector test is the frontend's first check.
+- [x] **T2.4 Index and export (D6).** `docs/api/README.md`, `scripts/export-client-docs.sh`, a
   pointer from the readme. *Accept:* exporting to a temp directory gives the files plus `VERSION`.
+  *Done:* `docs/api/README.md` has the file index and a ready-to-paste `CLAUDE.md` section for
+  client repos. `scripts/export-client-docs.sh <client-repo> [subdir]` replaces
+  `<client-repo>/docs/delsign-api/` (a stale file was removed in the test), copies the docs,
+  and writes `VERSION` with the commit, branch and time. It marks the commit "plus
+  uncommitted changes" when `docs/api` is dirty, and rejects bad arguments. The readme's API
+  section points to `docs/api/`, and its layout list includes it.
 
 ### Phase 3 — Close-out
 
@@ -166,6 +208,15 @@ Legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - 2026-10-29: Q3 resolved: stop after the client docs. The MCP server (D7, old Phase 3) is
   deferred to the roadmap, and close-out becomes Phase 3.
 - 2026-10-29: D1–D6 agreed as proposed.
+- 2026-10-29 (Phase 2, done in one go): found while writing the guide, and added to the
+  roadmap rather than fixed here:
+  - **No CORS.** A preflight `OPTIONS` gets a 405 with no CORS headers (checked against the
+    router), so browser clients need a same-origin proxy. The guide says so.
+  - **Replays can't report the outcome.** The `requestId` is recorded before the broadcast,
+    so a retry after a lost response gets a 409 without the `txnid`, and a 502 uses the id up.
+    The guide's retry rules are written around this.
+  - Also fixed in the spec: `GET /wallets` has no `ORDER BY`, so the spec says "in no
+    particular order".
 - 2026-10-29 (Phase 1, done in one go): D1 is implemented as a `Wei` JSON type rather than
   a string field parsed in the handler. Decoding then rejects bad amounts, and the
   error can say "send a string". `go test -race ./...` passes.

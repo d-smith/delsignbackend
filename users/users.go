@@ -101,10 +101,15 @@ func validateRotation(currentPubKey string, kr *KeyReg) error {
 	if kr.SignatureForRotation == "" {
 		return errors.New("A key is already registered; replacing it needs sig4rotate from the current key")
 	}
-	if err := VerifySignature(currentPubKey, kr.Email+kr.PubKey, kr.SignatureForRotation); err != nil {
+	if err := VerifySignature(currentPubKey, RotationMessage(kr.Email, kr.PubKey), kr.SignatureForRotation); err != nil {
 		return errors.New("Invalid sig4rotate")
 	}
 	return nil
+}
+
+// RotationMessage is the message the current key signs to approve newPubKeyHex.
+func RotationMessage(email, newPubKeyHex string) string {
+	return email + newPubKeyHex
 }
 
 // VerifySignature checks sigHex, a hex PKCS #1 v1.5 signature over the
