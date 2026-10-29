@@ -59,10 +59,10 @@ claim; tokens without `exp`, expired tokens, and other algorithms get a 403.
 | `POST /api/v1/keyreg` | Register or replace your RSA key ([below](#signing-protocol)) | 200 |
 | `GET /api/v1/users/{email}` | Your own registration, `{"email", "pubkey"}`; any other email → 403 | 200 |
 | `POST /api/v1/wallets` | Create a wallet, `{"id": 1}` | 201 |
-| `GET /api/v1/wallets` | Your wallet ids, `[1, 2]` | 200 |
+| `GET /api/v1/wallets` | Your wallet ids, `[1, 2]` (`[]` if none) | 200 |
 | `POST /api/v1/wallets/{id}/addresses` | New address in your wallet, `{"eoa": "0x…"}` | 201 |
-| `GET /api/v1/walletctx` | All your wallets and addresses, `[{"walletId", "address"}]` | 200 |
-| `GET /api/v1/wallets/balance/{address}` | Balance in wei, `{"address", "amount"}` | 200 |
+| `GET /api/v1/walletctx` | All your wallets and addresses, `[{"walletId", "address"}]` (`[]` if none) | 200 |
+| `GET /api/v1/wallets/balance/{address}` | Balance in wei, `{"address": "0x…", "amount": "1000"}` | 200 |
 | `POST /api/v1/wallets/send` | Send ETH ([below](#signing-protocol)), `{"txnid": "0x…"}` | 200 |
 | `GET /api/v1/authping` | Check a token | 200 |
 
@@ -92,23 +92,26 @@ key can't replace it; there is no recovery path yet.
 **Send ETH** (`POST /api/v1/wallets/send`):
 
 ```json
-{"source": "0x…", "dest": "0x…", "amount": 1000, "requestId": "<UUID>", "expiry": 1800000060, "sig": "<hex>"}
+{"source": "0x…", "dest": "0x…", "amount": "1000", "requestId": "<UUID>", "expiry": 1800000060, "sig": "<hex>"}
 ```
 
-`sig` is over `source + dest + amount + requestId + expiry` concatenated, with `amount` and
-`expiry` in decimal, e.g. `0xAb…0xCd…10006f1c2a7e-0b9d-4c55-9a43-2f1e8d7c6b5a1800000060`.
+`sig` is over `source + dest + amount + requestId + expiry` concatenated, with `expiry` in
+decimal, e.g. `0xAb…0xCd…10006f1c2a7e-0b9d-4c55-9a43-2f1e8d7c6b5a1800000060`.
 `requestId` is a fresh UUID for each request; `expiry` is a Unix time in seconds, in the future
 and at most 5 minutes ahead (a minute or two leaves room for clock skew). Expired requests
 or a bad `requestId` get a 400, and a `requestId` that was already used gets a 409. (This is
 not the Ethereum transaction nonce, which the server gets from the node.)
 
-`amount` is a positive integer in wei, as a JSON number. `source` and `dest` may be in any
-letter case, but `sig` covers them exactly as written in the request. Responses:
+`amount` is a positive integer in wei, sent as a JSON **string** of decimal digits (`"1000"`):
+no sign, leading zeros, decimal point or exponent, and at most 2²⁵⁶ − 1. Balances come back the
+same way. Strings, because JavaScript numbers can't hold most wei amounts exactly; a JSON
+number gets a 400. `source` and `dest` may be in any letter case, but `sig` covers them
+exactly as written in the request. Responses:
 
 | Status | When |
 |---|---|
 | 200 | Broadcast; the body is `{"txnid": "0x…"}` |
-| 400 | Malformed body, bad address, non-positive amount, bad or expired `requestId`/`expiry` |
+| 400 | Malformed body, bad address, amount not a canonical positive decimal string, bad or expired `requestId`/`expiry` |
 | 401 | Signature doesn't verify |
 | 403 | `source` isn't one of your addresses |
 | 409 | `requestId` already used |
@@ -121,9 +124,11 @@ so each one gets its own account nonce.
 
 ## Calling the API with curl
 
-These examples assume the server is running as in the [quick start](#quick-start), in the
-same shell (they use `DELSIGN_JWT_SECRET`), with `curl` and `openssl` installed.
-`scripts/smoke.sh` runs the same flow from start to finish.
+Start the server as in the [quick start](#quick-start). The examples make a token with
+`DELSIGN_JWT_SECRET`, so run them where that variable has the server's value: in the same
+shell with the server started as `go run . &`, or in a second shell after exporting the same
+value. They need `curl`, `openssl` and `jq`. `scripts/smoke.sh` runs the same flow from
+start to finish.
 
 **Setup.** Make a token, standing in for the identity provider, and an RSA key for signing:
 
@@ -177,18 +182,18 @@ mv new.pem user.pem
 curl -H "Authorization: Bearer $TOKEN" $API/users/$EMAIL
 ```
 
-**Create a wallet** (`POST /wallets`), then **list your wallets** (`GET /wallets`):
+**Create a wallet** (`POST /wallets`), keeping its id, then **list your wallets** (`GET /wallets`):
 
 ```bash
-curl -X POST -H "Authorization: Bearer $TOKEN" $API/wallets
+WALLET_ID=$(curl -s -X POST -H "Authorization: Bearer $TOKEN" $API/wallets | jq .id)
 curl -H "Authorization: Bearer $TOKEN" $API/wallets
 ```
 
-**Create an address** (`POST /wallets/{id}/addresses`) in wallet 1; run it twice to have a
+**Create an address** (`POST /wallets/{id}/addresses`) in that wallet; run it twice to have a
 source and a destination:
 
 ```bash
-curl -X POST -H "Authorization: Bearer $TOKEN" $API/wallets/1/addresses
+curl -X POST -H "Authorization: Bearer $TOKEN" $API/wallets/$WALLET_ID/addresses
 ```
 
 **List your wallets and addresses** (`GET /walletctx`):
@@ -211,11 +216,11 @@ rerun all of the lines below for every send; resending the same body gets a 409:
 
 ```bash
 AMOUNT=1000
-REQUEST_ID=$(uuidgen)   # without uuidgen: cat /proc/sys/kernel/random/uuid
+REQUEST_ID=$(uuidgen)   # or, on Linux: cat /proc/sys/kernel/random/uuid
 EXPIRY=$(($(date +%s) + 120))
 SIG=$(sign user.pem "$SOURCE$DEST$AMOUNT$REQUEST_ID$EXPIRY")
 curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  -d "{\"source\":\"$SOURCE\",\"dest\":\"$DEST\",\"amount\":$AMOUNT,\"requestId\":\"$REQUEST_ID\",\"expiry\":$EXPIRY,\"sig\":\"$SIG\"}" \
+  -d "{\"source\":\"$SOURCE\",\"dest\":\"$DEST\",\"amount\":\"$AMOUNT\",\"requestId\":\"$REQUEST_ID\",\"expiry\":$EXPIRY,\"sig\":\"$SIG\"}" \
   $API/wallets/send
 ```
 

@@ -85,7 +85,7 @@ func (wdb *WalletsDB) UserOwnsAddress(email string, address string) (bool, error
 }
 
 func (wdb *WalletsDB) ListWallets(email string) ([]int, error) {
-	var wallets []int
+	wallets := []int{} // empty, not nil, so the JSON is [] rather than null
 
 	rows, err := wdb.db.Query("SELECT id FROM wallets WHERE email=?;", email)
 	if err != nil {
@@ -111,7 +111,7 @@ type WalletAddressPair struct {
 }
 
 func (wdb *WalletsDB) WalletsAndAddressesForUser(email string) ([]WalletAddressPair, error) {
-	var pairs []WalletAddressPair
+	pairs := []WalletAddressPair{} // empty, not nil, so the JSON is [] rather than null
 
 	rows, err := wdb.db.Query("select w.id, a.address from wallets w, addresses a WHERE w.email=? and a.wallet_id = w.id order by w.id ;", email)
 	if err != nil {

@@ -120,7 +120,7 @@ send_body() {
 	request_id=$(uuid)
 	expiry=$(($(date +%s) + 120))
 	sig=$(rsa_sign "$1$2$3$request_id$expiry")
-	jq -nc --arg s "$1" --arg d "$2" --argjson a "$3" --arg r "$request_id" --argjson e "$expiry" --arg sig "$sig" \
+	jq -nc --arg s "$1" --arg d "$2" --arg a "$3" --arg r "$request_id" --argjson e "$expiry" --arg sig "$sig" \
 		'{source: $s, dest: $d, amount: $a, requestId: $r, expiry: $e, sig: $sig}'
 }
 

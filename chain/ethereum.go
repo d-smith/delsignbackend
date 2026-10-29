@@ -134,8 +134,8 @@ func (eth *EthereumChain) SendEth(ctx context.Context, source common.Address, de
 }
 
 type Balance struct {
-	Address string   `json:"address"`
-	Amount  *big.Int `json:"amount"`
+	Address string `json:"address"`
+	Amount  Wei    `json:"amount"`
 }
 
 func GetBalance(rw http.ResponseWriter, r *http.Request) {
@@ -154,7 +154,7 @@ func GetBalance(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	helpers.WriteJSON(rw, http.StatusOK, Balance{Address: address.Hex(), Amount: amount})
+	helpers.WriteJSON(rw, http.StatusOK, Balance{Address: address.Hex(), Amount: Wei{amount}})
 }
 
 // SendPayload is a signed send request. Sig is the user's RSA signature over
@@ -162,12 +162,12 @@ func GetBalance(rw http.ResponseWriter, r *http.Request) {
 // client-chosen UUID and Expiry a Unix time at most maxExpiry ahead; together
 // they stop a captured request from being replayed.
 type SendPayload struct {
-	SourceAddress      string   `json:"source"`
-	DestinationAddress string   `json:"dest"`
-	Amount             *big.Int `json:"amount"`
-	RequestId          string   `json:"requestId"`
-	Expiry             int64    `json:"expiry"`
-	Signature          string   `json:"sig"`
+	SourceAddress      string `json:"source"`
+	DestinationAddress string `json:"dest"`
+	Amount             Wei    `json:"amount"`
+	RequestId          string `json:"requestId"`
+	Expiry             int64  `json:"expiry"`
+	Signature          string `json:"sig"`
 }
 
 // How far ahead a send request's expiry may be.
@@ -233,7 +233,7 @@ func SendEth(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Println("Form and broadcast eth transaction")
-	txnid, err := EthChain.SendEth(r.Context(), source, dest, payload.Amount)
+	txnid, err := EthChain.SendEth(r.Context(), source, dest, payload.Amount.Int)
 	if errors.Is(err, ErrNode) {
 		log.Println(err)
 		http.Error(rw, err.Error(), http.StatusBadGateway)
@@ -259,7 +259,7 @@ func checkFields(payload *SendPayload) (source, dest common.Address, err error) 
 	if !common.IsHexAddress(payload.DestinationAddress) {
 		return source, dest, errors.New("dest must be an Ethereum address")
 	}
-	if payload.Amount == nil || payload.Amount.Sign() <= 0 {
+	if payload.Amount.Int == nil || payload.Amount.Sign() <= 0 {
 		return source, dest, errors.New("amount must be a positive integer (wei)")
 	}
 	return common.HexToAddress(payload.SourceAddress), common.HexToAddress(payload.DestinationAddress), nil
@@ -281,9 +281,10 @@ func checkFreshness(payload *SendPayload, now time.Time) error {
 	return nil
 }
 
-// sendMessage is the message the user signs for a send request.
+// sendMessage is the message the user signs for a send request. Wei only
+// accepts canonical decimal strings, so the amount here is the string sent.
 func sendMessage(payload *SendPayload) string {
-	return fmt.Sprintf("%s%s%d%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount, payload.RequestId, payload.Expiry)
+	return fmt.Sprintf("%s%s%s%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount, payload.RequestId, payload.Expiry)
 }
 
 // verifySendSignature checks the user's signature over the request as sent:

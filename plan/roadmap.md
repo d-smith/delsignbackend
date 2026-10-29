@@ -74,15 +74,22 @@ _Last updated: 2026-10-28, at the close of plan 01._
   - key replacement needs `sig4rotate` (T3.3);
   - `GET /users/{email}` needs a token (T3.5);
   - request bodies with unknown fields get a 400 (T4.2);
-  - ownership failures are 403 and node failures are 502 (T4.3).
+  - ownership failures are 403 and node failures are 502 (T4.3);
+  - wei amounts are decimal strings, in sends and balances (plan 02, D1);
+  - empty lists are `[]`, not `null` (plan 02, D2).
 
-  The frontend is outside this repo. *Source: §1, D4.*
+  The frontend is outside this repo. *Source: §1, D4; plan 02.*
 - **No clock-skew allowance on `expiry`.** A request is accepted only if
   `now < expiry ≤ now + 5 min`; the readme tells clients to use 1–2 minutes. Relax it only
   if clients see rejections in practice. *Source: T3.4.*
-- **Empty lists come back as `null`.** `GET /wallets` and `GET /walletctx` return `null`, not
-  `[]`, for a user with no wallets. Fixing it is a small change, but clients may depend on it.
-  *Source: close-out review.*
+- **Error bodies are plain text.** A JSON body (`{"error": "…", "code": "…"}`) would give
+  clients a stable code to switch on instead of matching message text. It's a breaking
+  change, deferred when plan 02 was drafted. *Source: plan 02, Q1.*
+- **No MCP server for the API docs.** Plan 02 ships `docs/api/` as files that are copied into the
+  client repo. A read-only MCP server over those files (its own Go module, the official Go
+  SDK, docs only and never live API calls) was designed but deferred; it's mainly
+  useful for learning the "API catalog" pattern used with many APIs.
+  *Source: plan 02, §5 and D7.*
 - **No address book.** Users can't save or look up other people's addresses.
   *Source: §1 (out of scope).*
 - **`import-key` needs the full configuration**, including `DELSIGN_JWT_SECRET`, which

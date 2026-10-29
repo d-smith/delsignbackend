@@ -141,7 +141,7 @@ func (f *sendFixture) payload(t *testing.T, requestId string, expiry time.Time) 
 	return f.sign(t, SendPayload{
 		SourceAddress:      f.source,
 		DestinationAddress: dest,
-		Amount:             big.NewInt(1000),
+		Amount:             Wei{big.NewInt(1000)},
 		RequestId:          requestId,
 		Expiry:             expiry.Unix(),
 	})
@@ -170,10 +170,32 @@ const reqId1 = "6f1c2a7e-0b9d-4c55-9a43-2f1e8d7c6b5a"
 const reqId2 = "0d4f6a2b-9c8e-4f71-b3a5-6e2d1c0b9a87"
 
 func TestSendMessageFormat(t *testing.T) {
-	p := SendPayload{SourceAddress: "0xA", DestinationAddress: "0xB", Amount: big.NewInt(42), RequestId: reqId1, Expiry: 1800000060}
+	p := SendPayload{SourceAddress: "0xA", DestinationAddress: "0xB", Amount: Wei{big.NewInt(42)}, RequestId: reqId1, Expiry: 1800000060}
 	want := "0xA0xB42" + reqId1 + "1800000060"
 	if got := sendMessage(&p); got != want {
 		t.Errorf("sendMessage = %q, want %q", got, want)
+	}
+}
+
+func TestWeiJSON(t *testing.T) {
+	// 2^256 - 1, the largest amount allowed
+	max := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 256), big.NewInt(1)).String()
+	for _, s := range []string{"0", "1", "1000000000000000000", max} {
+		var w Wei
+		if err := json.Unmarshal([]byte(`"`+s+`"`), &w); err != nil {
+			t.Errorf("unmarshal %q: %v", s, err)
+			continue
+		}
+		out, err := json.Marshal(w)
+		if err != nil || string(out) != `"`+s+`"` {
+			t.Errorf("round trip %q gave %s (err %v)", s, out, err)
+		}
+	}
+
+	var w Wei
+	err := json.Unmarshal([]byte(`1000`), &w)
+	if err == nil || !strings.Contains(err.Error(), "string") {
+		t.Errorf("JSON number: err = %v, want one saying to send a string", err)
 	}
 }
 
@@ -305,9 +327,9 @@ func TestSendRejectsInvalidFields(t *testing.T) {
 	tests := map[string]func(*SendPayload){
 		"source not an address": func(p *SendPayload) { p.SourceAddress = "0x1234" },
 		"dest not an address":   func(p *SendPayload) { p.DestinationAddress = "bob" },
-		"zero amount":           func(p *SendPayload) { p.Amount = big.NewInt(0) },
-		"negative amount":       func(p *SendPayload) { p.Amount = big.NewInt(-5) },
-		"missing amount":        func(p *SendPayload) { p.Amount = nil },
+		"zero amount":           func(p *SendPayload) { p.Amount = Wei{big.NewInt(0)} },
+		"negative amount":       func(p *SendPayload) { p.Amount = Wei{big.NewInt(-5)} },
+		"missing amount":        func(p *SendPayload) { p.Amount = Wei{} },
 	}
 	for name, change := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -320,11 +342,22 @@ func TestSendRejectsInvalidFields(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(valid())
+	if !strings.Contains(string(body), `"amount":"1000"`) {
+		t.Fatalf("valid body %s doesn't send the amount as a string", body)
+	}
+	amount := func(v string) string { return strings.Replace(string(body), `"amount":"1000"`, `"amount":`+v, 1) }
 	raw := map[string]string{
-		"malformed JSON":  `{"source":`,
-		"amount a string": strings.Replace(string(body), `"amount":1000`, `"amount":"1000"`, 1),
-		"amount fraction": strings.Replace(string(body), `"amount":1000`, `"amount":10.5`, 1),
-		"unknown field":   strings.Replace(string(body), `{`, `{"extra":1,`, 1),
+		"malformed JSON":        `{"source":`,
+		"amount a JSON number":  amount(`1000`),
+		"amount leading zero":   amount(`"01000"`),
+		"amount with plus sign": amount(`"+1000"`),
+		"amount with exponent":  amount(`"1e3"`),
+		"amount decimal":        amount(`"10.5"`),
+		"amount with spaces":    amount(`" 1000"`),
+		"amount hex":            amount(`"0x3e8"`),
+		"amount empty":          amount(`""`),
+		"amount over 2^256-1":   amount(`"` + new(big.Int).Lsh(big.NewInt(1), 256).String() + `"`),
+		"unknown field":         strings.Replace(string(body), `{`, `{"extra":1,`, 1),
 	}
 	for name, body := range raw {
 		t.Run(name, func(t *testing.T) {
@@ -332,6 +365,10 @@ func TestSendRejectsInvalidFields(t *testing.T) {
 				t.Errorf("status = %d (%s), want 400", rec.Code, rec.Body)
 			}
 		})
+	}
+	// A client still sending a number is told what to send instead
+	if rec := postSendRaw(t, raw["amount a JSON number"]); !strings.Contains(rec.Body.String(), "JSON string") {
+		t.Errorf("JSON number amount: body = %q, want it to say to send a string", rec.Body)
 	}
 	if len(f.node.sent) != 0 {
 		t.Errorf("%d transactions sent for invalid requests, want 0", len(f.node.sent))
@@ -369,7 +406,7 @@ func TestSendRejectsTamperedFields(t *testing.T) {
 	tamper := map[string]func(*SendPayload){
 		"requestId": func(p *SendPayload) { p.RequestId = reqId2 },
 		"expiry":    func(p *SendPayload) { p.Expiry += 1 },
-		"amount":    func(p *SendPayload) { p.Amount = big.NewInt(9999) },
+		"amount":    func(p *SendPayload) { p.Amount = Wei{big.NewInt(9999)} },
 		"dest":      func(p *SendPayload) { p.DestinationAddress = "0x0000000000000000000000000000000000000009" },
 		// Same address, different spelling: the signature covers the request as sent
 		"source case": func(p *SendPayload) { p.SourceAddress = strings.ToLower(p.SourceAddress) },
@@ -437,7 +474,7 @@ func TestGetBalance(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&b); err != nil {
 		t.Fatal(err)
 	}
-	if b.Address != f.source || b.Amount.Int64() != 12345 {
+	if b.Address != f.source || b.Amount.Int == nil || b.Amount.Int64() != 12345 {
 		t.Errorf("balance = %+v, want checksum address and 12345", b)
 	}
 

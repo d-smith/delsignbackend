@@ -111,6 +111,28 @@ func TestGetWalletsIs200(t *testing.T) {
 	}
 }
 
+func TestEmptyListsAreEmptyArrays(t *testing.T) {
+	newHandlerStores(t) // only testEmail has a wallet, with no addresses
+
+	tests := []struct {
+		name  string
+		h     http.HandlerFunc
+		email string
+	}{
+		{"wallets, no wallets", GetWallets, "b@example.com"},
+		{"walletctx, no wallets", GetWalletAndAddressesForUser, "b@example.com"},
+		{"walletctx, wallet without addresses", GetWalletAndAddressesForUser, testEmail},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := serveAs(tt.h, http.MethodGet, "/api/v1/x", tt.email, nil)
+			if rec.Code != http.StatusOK || rec.Body.String() != "[]\n" {
+				t.Errorf("status %d, body %q; want 200 and []", rec.Code, rec.Body)
+			}
+		})
+	}
+}
+
 func TestUserOwnsAddressNeedsChecksumForm(t *testing.T) {
 	walletId := newHandlerStores(t)
 	if _, err := AddressDatabase.ImportKey(walletId, anvilKey); err != nil {
