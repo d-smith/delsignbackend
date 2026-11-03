@@ -2,217 +2,298 @@ package chain
 
 import (
 	"context"
-	"crypto"
-	"crypto/rsa"
-	"crypto/sha256"
-	"crypto/x509"
+	"delsignbackend/helpers"
+	"delsignbackend/middleware"
 	"delsignbackend/users"
 	"delsignbackend/wallets"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"math/big"
 	"net/http"
+	"regexp"
+	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/gorilla/mux"
 )
 
-const RPC_ENDPOINT = "http://localhost:8545"
+// Client is the part of the Ethereum JSON-RPC API the server uses.
+// *ethclient.Client implements it; tests use a fake.
+type Client interface {
+	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
+	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
+	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	SendTransaction(ctx context.Context, tx *types.Transaction) error
+}
 
-var CHAIN_ID = big.NewInt(1337)
+// ErrNode marks failures reported by the Ethereum node; handlers answer them with 502.
+var ErrNode = errors.New("ethereum node error")
+
+// Gas for a plain ETH transfer.
+const transferGas = 21000
 
 type EthereumChain struct {
-	client *ethclient.Client
+	client  Client
+	chainID *big.Int
+
+	// One mutex per source address (common.Address → *sync.Mutex), held from
+	// the nonce lookup to the broadcast so concurrent sends from one address
+	// get different nonces. Entries are never removed; fine for a PoC.
+	sendLocks sync.Map
 }
 
 var EthChain *EthereumChain
 
-func NewEthereumChain() *EthereumChain {
-	client, err := ethclient.Dial(RPC_ENDPOINT)
+func NewEthereumChain(rpcURL string, chainID *big.Int) *EthereumChain {
+	client, err := ethclient.Dial(rpcURL)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return &EthereumChain{client: client}
+	return NewEthereumChainWithClient(client, chainID)
 }
 
-func (eth *EthereumChain) GetBalance(address string) (*big.Int, error) {
-	account := common.HexToAddress(address)
-	balance, err := eth.client.BalanceAt(context.Background(), account, nil)
+func NewEthereumChainWithClient(client Client, chainID *big.Int) *EthereumChain {
+	return &EthereumChain{client: client, chainID: chainID}
+}
 
+func (eth *EthereumChain) GetBalance(ctx context.Context, address common.Address) (*big.Int, error) {
+	balance, err := eth.client.BalanceAt(ctx, address, nil)
 	if err != nil {
-		log.Println(err.Error())
+		return nil, fmt.Errorf("%w: get balance: %w", ErrNode, err)
 	}
-
-	return balance, err
+	return balance, nil
 }
 
-func (eth *EthereumChain) SendEth(email string, source string, destination string, amount *big.Int) (string, error) {
+// lockSource locks sends from address and returns the unlock function.
+func (eth *EthereumChain) lockSource(address common.Address) func() {
+	mu, _ := eth.sendLocks.LoadOrStore(address, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	return mu.(*sync.Mutex).Unlock
+}
+
+// SendEth signs an EIP-1559 transfer from source with its stored key and
+// broadcasts it, returning the transaction hash.
+func (eth *EthereumChain) SendEth(ctx context.Context, source common.Address, destination common.Address, amount *big.Int) (string, error) {
 	// Get the key for the address
-	privateKey, err := wallets.AddressDatabase.ReadPrivateKeyForAddress(source)
+	privateKey, err := wallets.AddressDatabase.ReadPrivateKeyForAddress(source.Hex())
 	if err != nil {
-		log.Println("Unable to get private key for address", err.Error())
-		return "", err
+		return "", fmt.Errorf("read key for %s: %w", source.Hex(), err)
 	}
 
-	//Determine the nonce
-	nonce, err := eth.client.PendingNonceAt(context.Background(), common.HexToAddress(source))
+	unlock := eth.lockSource(source)
+	defer unlock()
+
+	// Determine the account nonce (the transaction's sequence number, from the node)
+	nonce, err := eth.client.PendingNonceAt(ctx, source)
 	if err != nil {
-		log.Println("Unable to get nonce", err.Error())
-		return "", err
+		return "", fmt.Errorf("%w: get nonce: %w", ErrNode, err)
 	}
 
-	log.Println("Nonce for", source, " is ", nonce)
-
-	// Determine gas config
-	gasLimit := uint64(21000) // in units
-	gasPrice, err := eth.client.SuggestGasPrice(context.Background())
-
-	// Form the transaction
-	var data []byte
-	tx := types.NewTransaction(nonce, common.HexToAddress(destination), amount, gasLimit, gasPrice, data)
-
-	// Sign the transaction
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(CHAIN_ID), privateKey)
+	// Fees: the node's suggested tip, and a fee cap of twice the current base
+	// fee plus the tip, which stays valid through several full blocks.
+	tip, err := eth.client.SuggestGasTipCap(ctx)
 	if err != nil {
-		log.Println("Unable to sign transaction", err.Error())
-		return "", err
+		return "", fmt.Errorf("%w: suggest tip: %w", ErrNode, err)
+	}
+	head, err := eth.client.HeaderByNumber(ctx, nil)
+	if err != nil {
+		return "", fmt.Errorf("%w: latest header: %w", ErrNode, err)
+	}
+	if head.BaseFee == nil {
+		return "", fmt.Errorf("%w: node has no base fee (EIP-1559 not active)", ErrNode)
+	}
+	feeCap := new(big.Int).Add(new(big.Int).Mul(head.BaseFee, big.NewInt(2)), tip)
+
+	// Form and sign the transaction
+	tx := types.NewTx(&types.DynamicFeeTx{
+		ChainID:   eth.chainID,
+		Nonce:     nonce,
+		GasTipCap: tip,
+		GasFeeCap: feeCap,
+		Gas:       transferGas,
+		To:        &destination,
+		Value:     amount,
+	})
+	signedTx, err := types.SignTx(tx, types.LatestSignerForChainID(eth.chainID), privateKey)
+	if err != nil {
+		return "", fmt.Errorf("sign transaction: %w", err)
 	}
 
 	// Broadcast the transaction
-	err = eth.client.SendTransaction(context.Background(), signedTx)
-	if err != nil {
-		log.Println("Unable to broadcast transaction", err.Error())
-		return "", err
+	if err := eth.client.SendTransaction(ctx, signedTx); err != nil {
+		return "", fmt.Errorf("%w: broadcast: %w", ErrNode, err)
 	}
 
+	log.Printf("Sent %s from %s with nonce %d", signedTx.Hash().Hex(), source.Hex(), nonce)
 	return signedTx.Hash().Hex(), nil
 }
 
 type Balance struct {
-	Address string   `json:"address"`
-	Amount  *big.Int `json:"amount"`
+	Address string `json:"address"`
+	Amount  Wei    `json:"amount"`
 }
 
 func GetBalance(rw http.ResponseWriter, r *http.Request) {
+	raw := r.PathValue("address")
+	if !common.IsHexAddress(raw) {
+		http.Error(rw, "Invalid address", http.StatusBadRequest)
+		return
+	}
+	address := common.HexToAddress(raw)
 
-	address := mux.Vars(r)["address"]
-	log.Println("GetBalance", address)
-	amount, err := EthChain.GetBalance(address)
+	log.Println("GetBalance", address.Hex())
+	amount, err := EthChain.GetBalance(r.Context(), address)
 	if err != nil {
-		log.Println(err.Error())
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		log.Println(err)
+		http.Error(rw, err.Error(), http.StatusBadGateway)
 		return
 	}
 
-	var balance Balance
-	balance.Address = address
-	balance.Amount = amount
-
-	json.NewEncoder(rw).Encode(balance)
+	helpers.WriteJSON(rw, http.StatusOK, Balance{Address: address.Hex(), Amount: Wei{amount}})
 }
 
+// SendPayload is a signed send request. Sig is the user's RSA signature over
+// source+dest+amount+requestId+expiry (see SendMessage). RequestId is a
+// client-chosen UUID and Expiry a Unix time at most maxExpiry ahead; together
+// they stop a captured request from being replayed.
 type SendPayload struct {
-	SourceAddress      string   `json:"source"`
-	DestinationAddress string   `json:"dest"`
-	Amount             *big.Int `json:"amount"`
-	Signature          string   `json:"sig"`
+	SourceAddress      string `json:"source"`
+	DestinationAddress string `json:"dest"`
+	Amount             Wei    `json:"amount"`
+	RequestId          string `json:"requestId"`
+	Expiry             int64  `json:"expiry"`
+	Signature          string `json:"sig"`
 }
+
+// How far ahead a send request's expiry may be.
+const maxExpiry = 5 * time.Minute
+
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// now is the clock for expiry checks; tests replace it.
+var now = time.Now
 
 func SendEth(rw http.ResponseWriter, r *http.Request) {
 	log.Println("SendEth")
 
-	log.Println("extract email from context")
-	email := r.Context().Value("email").(string)
-	if email == "" {
-		http.Error(rw, "Missing email", 403)
+	email, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
+		http.Error(rw, "Missing email", http.StatusForbidden)
 		return
 	}
 
-	log.Println("decode json body")
 	var payload SendPayload
-
-	err := json.NewDecoder(r.Body).Decode(&payload)
-	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+	if err := helpers.DecodeJSONBody(rw, r, &payload); err != nil {
+		helpers.WriteDecodeError(rw, err)
 		return
 	}
 
-	log.Println("validate signature")
-	valid, err := validateSignature(email, &payload)
-	if !valid || err != nil {
+	source, dest, err := checkFields(&payload)
+	if err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := checkFreshness(&payload, now()); err != nil {
+		http.Error(rw, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Addresses are stored in checksum form, so look the source up that way
+	owns, err := wallets.WalletsDatabase.UserOwnsAddress(email, source.Hex())
+	if err != nil {
+		helpers.ServerError(rw, err)
+		return
+	}
+	if !owns {
+		http.Error(rw, "Source address is not yours", http.StatusForbidden)
+		return
+	}
+
+	if err := verifySendSignature(email, &payload); err != nil {
+		log.Println("Send signature rejected:", err)
 		http.Error(rw, "Invalid signature", http.StatusUnauthorized)
 		return
 	}
 
-	log.Println("Form and broadcast eth transaction")
-	txnid, err := EthChain.SendEth(email, payload.SourceAddress, payload.DestinationAddress, payload.Amount)
+	// Record the request id only once the signature is good, so a caller
+	// with just a JWT can't use up the user's request ids.
+	err = RequestIdDatabase.Use(email, payload.RequestId, payload.Expiry, now())
+	if errors.Is(err, ErrRequestIdUsed) {
+		http.Error(rw, "Request already processed (requestId reused)", http.StatusConflict)
+		return
+	}
 	if err != nil {
-		http.Error(rw, err.Error(), http.StatusInternalServerError)
+		helpers.ServerError(rw, err)
 		return
 	}
 
-	var txnContext struct {
-		TxnId string `json:"txnid"`
+	log.Println("Form and broadcast eth transaction")
+	txnid, err := EthChain.SendEth(r.Context(), source, dest, payload.Amount.Int)
+	if errors.Is(err, ErrNode) {
+		log.Println(err)
+		http.Error(rw, err.Error(), http.StatusBadGateway)
+		return
 	}
-	txnContext.TxnId = txnid
+	if err != nil {
+		helpers.ServerError(rw, err)
+		return
+	}
 
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusOK)
-
-	json.NewEncoder(rw).Encode(txnContext)
+	helpers.WriteJSON(rw, http.StatusOK, SendResult{TxnId: txnid})
 }
 
-func validateSignature(email string, payload *SendPayload) (bool, error) {
-	// Is the source address affiliated with the user?
-	if wallets.WalletsDatabase.UserOwnsAddress(email, payload.SourceAddress) == false {
-		log.Printf("User %s does not own source address %s\n", email, payload.SourceAddress)
-		return false, errors.New("Invalid source address")
+// SendResult is the response to a successful send: the transaction hash.
+type SendResult struct {
+	TxnId string `json:"txnid"`
+}
+
+// checkFields checks the addresses and amount, and returns the addresses parsed.
+func checkFields(payload *SendPayload) (source, dest common.Address, err error) {
+	if !common.IsHexAddress(payload.SourceAddress) {
+		return source, dest, errors.New("source must be an Ethereum address")
 	}
-
-	// Form the basis for the hash that was signed
-	msg := fmt.Sprintf("%s%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount)
-
-	hash := sha256.Sum256([]byte(msg))
-
-	// Decode the signature
-	decodedSig, err := hex.DecodeString(payload.Signature)
-	if err != nil {
-		log.Println("Unable to decode signature")
-		return false, errors.New("Unable to decode signature")
+	if !common.IsHexAddress(payload.DestinationAddress) {
+		return source, dest, errors.New("dest must be an Ethereum address")
 	}
+	if payload.Amount.Int == nil || payload.Amount.Sign() <= 0 {
+		return source, dest, errors.New("amount must be a positive integer (wei)")
+	}
+	return common.HexToAddress(payload.SourceAddress), common.HexToAddress(payload.DestinationAddress), nil
+}
 
-	// Read the signing key context for the address
+// checkFreshness rejects requests without a UUID request id, and requests that have
+// expired or whose expiry is further ahead than maxExpiry.
+func checkFreshness(payload *SendPayload, now time.Time) error {
+	if !uuidPattern.MatchString(payload.RequestId) {
+		return errors.New("requestId must be a UUID")
+	}
+	expiry := time.Unix(payload.Expiry, 0)
+	if !expiry.After(now) {
+		return errors.New("request expired")
+	}
+	if expiry.After(now.Add(maxExpiry)) {
+		return fmt.Errorf("expiry must be at most %s ahead", maxExpiry)
+	}
+	return nil
+}
+
+// SendMessage is the message the user signs for a send request. Wei only
+// accepts canonical decimal strings, so the amount here is the string sent.
+func SendMessage(payload *SendPayload) string {
+	return fmt.Sprintf("%s%s%s%s%d", payload.SourceAddress, payload.DestinationAddress, payload.Amount, payload.RequestId, payload.Expiry)
+}
+
+// verifySendSignature checks the user's signature over the request as sent:
+// the addresses exactly as the client wrote them, not the checksum forms.
+func verifySendSignature(email string, payload *SendPayload) error {
 	userInfo, err := users.UserDatabase.GetUser(email)
 	if err != nil {
-		log.Printf("Unable to get user info: %s\n", err.Error())
-		return false, errors.New("Unable to get user info")
+		return fmt.Errorf("get user: %w", err)
 	}
-
-	log.Printf("Pubkey for user: %s\n", userInfo.PubKey)
-
-	pubkeyBytes, err := hex.DecodeString(userInfo.PubKey)
-	if err != nil {
-		log.Println("Unable to decode pubkey")
-		return false, errors.New("Unable to decode pubkey")
-	}
-
-	pubkey, err := x509.ParsePKIXPublicKey(pubkeyBytes)
-
-	//valid := ecdsa.VerifyASN1(pubkey.(*ecdsa.PublicKey), hash[:], decodedSig)
-	//if !valid {
-	//	log.Println("Invalid signature")
-	//}
-	err = rsa.VerifyPKCS1v15(pubkey.(*rsa.PublicKey), crypto.SHA256, hash[:], decodedSig)
-	if err != nil {
-		log.Println("Invalid signature", err.Error())
-		return false, err
-	}
-
-	return true, nil
+	return users.VerifySignature(userInfo.PubKey, SendMessage(payload), payload.Signature)
 }

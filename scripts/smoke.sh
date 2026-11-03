@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+#
+# End-to-end smoke test against a local dev chain.
+#
+# Builds and starts the server on a scratch database, then runs:
+#   register key -> look up own record -> create wallet -> create two addresses
+#   -> fund the first from the node -> send ETH to the second through the API
+#   -> check the balance -> replay the send (must get 409)
+#   -> two concurrent sends from one address (both must be mined)
+#   -> import Anvil dev account 9 with import-key -> send from it.
+#
+# Needs a running dev node with unlocked, funded accounts (Anvil, Hardhat, ...):
+#   anvil &
+#   scripts/smoke.sh
+#
+# Funding uses eth_sendTransaction from the node's first account, so the script
+# never touches the database directly. The chain ID is read from the node.
+# The import-key step is skipped on nodes without Anvil's default accounts.
+#
+# Environment:
+#   SMOKE_RPC_URL  node JSON-RPC endpoint   (default http://localhost:8545)
+#   SMOKE_PORT     port for the test server (default 3099)
+#   SMOKE_KEEP=1   keep the temp dir (DB, keys, server log) for inspection
+
+set -euo pipefail
+
+RPC_URL=${SMOKE_RPC_URL:-http://localhost:8545}
+PORT=${SMOKE_PORT:-3099}
+API=http://localhost:$PORT/api/v1
+EMAIL=smoke@example.com
+FUND_WEI=1000000000000000000 # 1 ETH
+SEND_WEI=100000000000000000  # 0.1 ETH
+
+# Anvil/Hardhat default account 9 (well-known test key, never use for real funds)
+IMPORT_KEY=0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6
+IMPORT_ADDRESS=0xa0Ee7A142d267C1f36714E4a8F75612F20a79720
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+WORK=$(mktemp -d)
+SERVER_PID=
+
+cleanup() {
+	if [[ -n $SERVER_PID ]]; then
+		kill "$SERVER_PID" 2>/dev/null || true
+		wait "$SERVER_PID" 2>/dev/null || true
+	fi
+	if [[ ${SMOKE_KEEP:-} == 1 ]]; then
+		echo "kept $WORK"
+	else
+		rm -rf "$WORK"
+	fi
+}
+trap cleanup EXIT
+
+step() { echo "==> $*"; }
+
+fail() {
+	echo "FAIL: $*" >&2
+	if [[ -f $WORK/server.log ]]; then
+		echo "--- server log (last 30 lines) ---" >&2
+		tail -n 30 "$WORK/server.log" >&2
+	fi
+	exit 1
+}
+
+for tool in go curl jq openssl od; do
+	command -v "$tool" >/dev/null || fail "$tool not found"
+done
+
+hexdump() { od -An -v -tx1 | tr -d ' \n'; }
+b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+
+# rpc METHOD PARAMS_JSON -> prints .result
+rpc() {
+	local resp
+	resp=$(curl -s -X POST -H 'Content-Type: application/json' \
+		--data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"$1\",\"params\":$2}" "$RPC_URL") ||
+		fail "$1: node not reachable at $RPC_URL"
+	if [[ $(jq 'has("error")' <<<"$resp") == true ]]; then
+		fail "$1: $(jq -c .error <<<"$resp")"
+	fi
+	jq -r .result <<<"$resp"
+}
+
+# api_status METHOD PATH [BODY] -> prints the HTTP status; body in $WORK/resp
+api_status() {
+	local args=(-sS -X "$1" -H "Authorization: Bearer $TOKEN" -o "$WORK/resp" -w '%{http_code}')
+	if [[ $# -ge 3 ]]; then
+		args+=(-H 'Content-Type: application/json' --data "$3")
+	fi
+	curl "${args[@]}" "$API$2" || fail "$1 $2: request failed"
+}
+
+# api METHOD PATH [BODY] -> prints the response body; fails on a non-2xx status
+api() {
+	local status
+	status=$(api_status "$@")
+	[[ $status == 2* ]] || fail "$1 $2: HTTP $status: $(cat "$WORK/resp")"
+	cat "$WORK/resp"
+}
+
+# expect_status WANT METHOD PATH [BODY] -> fails unless the request gets WANT
+expect_status() {
+	local want=$1 status
+	shift
+	status=$(api_status "$@")
+	[[ $status == "$want" ]] || fail "$1 $2: HTTP $status, want $want: $(cat "$WORK/resp")"
+}
+
+uuid() {
+	local h
+	h=$(openssl rand -hex 16)
+	echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"
+}
+
+# send_body SOURCE DEST WEI -> a signed send request with a fresh request id,
+# expiring in 2 minutes. The signature covers source+dest+amount+requestId+expiry.
+send_body() {
+	local request_id expiry sig
+	request_id=$(uuid)
+	expiry=$(($(date +%s) + 120))
+	sig=$(rsa_sign "$1$2$3$request_id$expiry")
+	jq -nc --arg s "$1" --arg d "$2" --arg a "$3" --arg r "$request_id" --argjson e "$expiry" --arg sig "$sig" \
+		'{source: $s, dest: $d, amount: $a, requestId: $r, expiry: $e, sig: $sig}'
+}
+
+wait_receipt() {
+	local receipt
+	for _ in $(seq 1 30); do
+		receipt=$(rpc eth_getTransactionReceipt "[\"$1\"]")
+		if [[ $receipt != null ]]; then
+			[[ $(jq -r .status <<<"$receipt") == 0x1 ]] || fail "transaction $1 reverted"
+			return
+		fi
+		sleep 1
+	done
+	fail "no receipt for $1 after 30s"
+}
+
+step "check node at $RPC_URL"
+CHAIN_ID=$(rpc eth_chainId '[]')
+CHAIN_ID=$(printf '%d' "$CHAIN_ID")
+FUNDER=$(rpc eth_accounts '[]' | jq -r '.[0] // empty')
+[[ -n $FUNDER ]] || fail "node has no unlocked accounts to fund from"
+echo "    chain id $CHAIN_ID, funding from $FUNDER"
+
+step "build and start server on :$PORT"
+! curl -s -o /dev/null "http://localhost:$PORT/" || fail "port $PORT is already in use (set SMOKE_PORT)"
+(cd "$ROOT" && go build -o "$WORK/delsignbackend" .)
+JWT_SECRET=$(openssl rand -hex 32)
+export DELSIGN_JWT_SECRET=$JWT_SECRET \
+	DELSIGN_KEY_ENC_KEY=$(openssl rand -hex 32) \
+	DELSIGN_PORT=$PORT \
+	DELSIGN_DB_PATH=$WORK/smoke.db \
+	DELSIGN_RPC_URL=$RPC_URL \
+	DELSIGN_CHAIN_ID=$CHAIN_ID
+"$WORK/delsignbackend" >"$WORK/server.log" 2>&1 &
+SERVER_PID=$!
+for _ in $(seq 1 50); do
+	curl -s -o /dev/null "$API/authping" && break
+	kill -0 "$SERVER_PID" 2>/dev/null || fail "server exited during startup"
+	sleep 0.1
+done
+curl -s -o /dev/null "$API/authping" || fail "server did not start on :$PORT"
+
+# HS256 token with an email claim, signed with the server's secret
+header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url)
+claims=$(printf '{"email":"%s","exp":%d}' "$EMAIL" $(($(date +%s) + 600)) | b64url)
+sig=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
+TOKEN=$header.$claims.$sig
+
+# RSA key the user signs requests with (PKCS #1 v1.5, SHA-256, hex)
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out "$WORK/user.pem" 2>/dev/null
+rsa_sign() { printf '%s' "$1" | openssl dgst -sha256 -sign "$WORK/user.pem" | hexdump; }
+
+step "register key for $EMAIL"
+pubkey=$(openssl pkey -in "$WORK/user.pem" -pubout -outform DER | hexdump)
+api POST /keyreg "$(jq -nc --arg e "$EMAIL" --arg p "$pubkey" --arg s "$(rsa_sign "$EMAIL")" \
+	'{email: $e, pubkey: $p, sig4reg: $s}')" >/dev/null
+
+step "look up own record; another user's is forbidden"
+[[ $(api GET "/users/$EMAIL" | jq -r .pubkey) == "$pubkey" ]] || fail "own record has the wrong pubkey"
+expect_status 403 GET /users/other@example.com
+
+step "create wallet"
+WALLET_ID=$(api POST /wallets | jq -r .id)
+echo "    wallet $WALLET_ID"
+
+step "create source and destination addresses"
+SOURCE=$(api POST "/wallets/$WALLET_ID/addresses" | jq -r .eoa)
+DEST=$(api POST "/wallets/$WALLET_ID/addresses" | jq -r .eoa)
+echo "    source $SOURCE"
+echo "    dest   $DEST"
+
+step "fund source with $FUND_WEI wei from $FUNDER"
+fund_tx=$(rpc eth_sendTransaction "$(jq -nc --arg f "$FUNDER" --arg t "$SOURCE" \
+	--arg v "$(printf '0x%x' "$FUND_WEI")" '[{from: $f, to: $t, value: $v}]')")
+wait_receipt "$fund_tx"
+balance=$(api GET "/wallets/balance/$SOURCE" | jq -r .amount)
+[[ $balance == "$FUND_WEI" ]] || fail "source balance $balance, want $FUND_WEI"
+
+step "send $SEND_WEI wei from source to dest via the API"
+send=$(send_body "$SOURCE" "$DEST" "$SEND_WEI")
+TXNID=$(api POST /wallets/send "$send" | jq -r .txnid)
+echo "    txn $TXNID"
+wait_receipt "$TXNID"
+
+step "check dest balance"
+balance=$(api GET "/wallets/balance/$DEST" | jq -r .amount)
+[[ $balance == "$SEND_WEI" ]] || fail "dest balance $balance, want $SEND_WEI"
+
+step "replay the same signed request"
+expect_status 409 POST /wallets/send "$send"
+
+step "two concurrent sends from source (need different account nonces)"
+pids=()
+for i in 1 2; do
+	curl -sS -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+		--data "$(send_body "$SOURCE" "$DEST" 1)" -o "$WORK/par$i" -w '%{http_code}' \
+		"$API/wallets/send" >"$WORK/par$i.status" &
+	pids+=($!)
+done
+# Wait for the two requests only; a bare wait would also wait for the server
+wait "${pids[@]}"
+for i in 1 2; do
+	[[ $(cat "$WORK/par$i.status") == 200 ]] || fail "concurrent send $i: HTTP $(cat "$WORK/par$i.status"): $(cat "$WORK/par$i")"
+	wait_receipt "$(jq -r .txnid "$WORK/par$i")"
+done
+
+if rpc eth_accounts '[]' | jq -e --arg a "${IMPORT_ADDRESS,,}" 'map(ascii_downcase) | index($a)' >/dev/null; then
+	step "import Anvil account 9 with import-key and send from it"
+	imported=$(echo "$IMPORT_KEY" | "$WORK/delsignbackend" import-key -wallet "$WALLET_ID" 2>>"$WORK/server.log")
+	[[ $imported == "$IMPORT_ADDRESS" ]] || fail "import-key printed '$imported', want $IMPORT_ADDRESS"
+	DEST2=$(api POST "/wallets/$WALLET_ID/addresses" | jq -r .eoa)
+	TXNID=$(api POST /wallets/send "$(send_body "$IMPORT_ADDRESS" "$DEST2" "$SEND_WEI")" | jq -r .txnid)
+	echo "    txn $TXNID"
+	wait_receipt "$TXNID"
+	balance=$(api GET "/wallets/balance/$DEST2" | jq -r .amount)
+	[[ $balance == "$SEND_WEI" ]] || fail "balance of $DEST2 is $balance, want $SEND_WEI"
+else
+	step "skip import-key: node doesn't have Anvil's default account 9"
+fi
+
+echo "PASS"

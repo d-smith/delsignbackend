@@ -6,20 +6,23 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"database/sql"
 	"delsignbackend/helpers"
+	"delsignbackend/middleware"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
-
-	"github.com/gorilla/mux"
 )
 
+// KeyReg registers a user's RSA public key. SignatureForRegistration is the
+// new key's signature over the email. Replacing an existing key also needs
+// SignatureForRotation: the current key's signature over email+pubkey.
 type KeyReg struct {
 	Email                    string `json:"email"`
 	PubKey                   string `json:"pubkey"`
 	SignatureForRegistration string `json:"sig4reg"`
+	SignatureForRotation     string `json:"sig4rotate,omitempty"`
 }
 
 func KeyRegCreate(w http.ResponseWriter, r *http.Request) {
@@ -29,28 +32,40 @@ func KeyRegCreate(w http.ResponseWriter, r *http.Request) {
 
 	err := helpers.DecodeJSONBody(w, r, &kr)
 	if err != nil {
-		var mr *helpers.MalformedRequest
-		if errors.As(err, &mr) {
-			http.Error(w, mr.Msg, mr.Status)
-		} else {
-			log.Print(err.Error())
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
-		}
+		helpers.WriteDecodeError(w, err)
 		return
 	}
 
-	log.Printf("KeyReg: %+v", kr)
 	err = validateKeyReg(r.Context(), &kr)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	log.Print("KeyReg content and signature validated - store in db")
-	err = UserDatabase.NewUserReg(&kr)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	current, err := UserDatabase.GetUser(kr.Email)
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		log.Print("KeyReg validated - store first key")
+		err = UserDatabase.NewUserReg(&kr)
+	case err != nil:
+		helpers.ServerError(w, err)
 		return
+	default:
+		// Replacing a key: a JWT alone must not be enough, or a stolen token
+		// could swap in the thief's key and then send funds.
+		if err := validateRotation(current.PubKey, &kr); err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		log.Print("KeyReg validated - replace key")
+		err = UserDatabase.ReplaceKey(kr.Email, current.PubKey, kr.PubKey)
+	}
+
+	switch {
+	case errors.Is(err, ErrKeyChanged):
+		http.Error(w, err.Error(), http.StatusConflict)
+	case err != nil:
+		helpers.ServerError(w, err)
 	}
 }
 
@@ -68,32 +83,61 @@ func validateKeyReg(ctx context.Context, kr *KeyReg) error {
 
 	// Check email used for registration is the same as the value in the
 	// JWT claims
-	email := ctx.Value("email").(string)
+	email, ok := middleware.EmailFromContext(ctx)
+	if !ok {
+		return errors.New("Missing email in token")
+	}
 	log.Println("email from JWT", email)
 	if email != kr.Email {
 		return errors.New("Email mismatch")
 	}
 
-	// Check signature
-	pubkeyBytes, err := hex.DecodeString(kr.PubKey)
+	// Check the new key signed the email, proving the caller holds it
+	return VerifySignature(kr.PubKey, kr.Email, kr.SignatureForRegistration)
+}
+
+// validateRotation checks that the current key approved the new one.
+func validateRotation(currentPubKey string, kr *KeyReg) error {
+	if kr.SignatureForRotation == "" {
+		return errors.New("A key is already registered; replacing it needs sig4rotate from the current key")
+	}
+	if err := VerifySignature(currentPubKey, RotationMessage(kr.Email, kr.PubKey), kr.SignatureForRotation); err != nil {
+		return errors.New("Invalid sig4rotate")
+	}
+	return nil
+}
+
+// RotationMessage is the message the current key signs to approve newPubKeyHex.
+func RotationMessage(email, newPubKeyHex string) string {
+	return email + newPubKeyHex
+}
+
+// VerifySignature checks sigHex, a hex PKCS #1 v1.5 signature over the
+// SHA-256 of msg, against pubKeyHex, a hex PKIX DER RSA public key.
+func VerifySignature(pubKeyHex string, msg string, sigHex string) error {
+	pubkeyBytes, err := hex.DecodeString(pubKeyHex)
 	if err != nil {
 		return errors.New("Unable to decode public key")
 	}
-
 	publicKey, err := x509.ParsePKIXPublicKey(pubkeyBytes)
 	if err != nil {
 		return errors.New("Unable to decode public key")
 	}
+	rsaKey, ok := publicKey.(*rsa.PublicKey)
+	if !ok {
+		return errors.New("Public key is not an RSA key")
+	}
 
-	hash := sha256.Sum256([]byte(kr.Email))
-	decodedSig, _ := hex.DecodeString(kr.SignatureForRegistration)
-	return rsa.VerifyPKCS1v15(publicKey.(*rsa.PublicKey), crypto.SHA256, hash[:], decodedSig)
-	//valid := ecdsa.VerifyASN1(publicKey.(*ecdsa.PublicKey), hash[:], decodedSig)
-	//if !valid {
-	//	return errors.New("Invalid signature")
-	//}
+	sig, err := hex.DecodeString(sigHex)
+	if err != nil {
+		return errors.New("Unable to decode signature")
+	}
 
-	//return nil
+	hash := sha256.Sum256([]byte(msg))
+	if err := rsa.VerifyPKCS1v15(rsaKey, crypto.SHA256, hash[:], sig); err != nil {
+		return errors.New("Invalid signature")
+	}
+	return nil
 }
 
 type UserInfo struct {
@@ -101,17 +145,29 @@ type UserInfo struct {
 	PubKey string `json:"pubkey"`
 }
 
+// GetUser returns the caller's own registration; other users' records are off limits.
 func GetUser(w http.ResponseWriter, r *http.Request) {
-	params := mux.Vars(r)
-	log.Println("lookup ", params["email"])
-	userInfo, err := UserDatabase.GetUser(params["email"])
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	caller, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Missing email", http.StatusForbidden)
+		return
+	}
+	email := r.PathValue("email")
+	if email != caller {
+		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(userInfo)
+	log.Println("lookup ", email)
+	userInfo, err := UserDatabase.GetUser(email)
+	if errors.Is(err, sql.ErrNoRows) {
+		http.Error(w, "No key registered", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		helpers.ServerError(w, err)
+		return
+	}
 
+	helpers.WriteJSON(w, http.StatusOK, userInfo)
 }

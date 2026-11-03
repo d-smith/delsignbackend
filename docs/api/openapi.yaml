@@ -1,0 +1,576 @@
+openapi: 3.1.0
+info:
+  title: Delsign delegated signing API
+  version: "2026-10-29"
+  summary: Server-held Ethereum keys; every transfer approved with the user's own RSA key.
+  description: |
+    The server holds an Ethereum private key for each of a user's addresses and signs
+    transactions with it, but only when the request carries a signature from the user's
+    registered RSA key. A valid JWT alone can't move funds or replace the RSA key.
+
+    Read `client-guide.md` alongside this spec: it gives the exact strings to sign, key
+    formats, and what each error means for a client. `test-vectors.json` has worked
+    signatures for checking a client's signing code.
+
+    Conventions:
+    - Every endpoint needs `Authorization: Bearer <JWT>`. Token problems get **403**, not 401.
+      401 is used only for a send whose RSA signature doesn't verify.
+    - Request bodies are JSON with exactly the listed fields: an unknown field gets a 400.
+    - Error responses are `text/plain` with a short human-readable message. The message
+      text is not a stable contract; switch on the status code.
+    - Wei amounts are decimal **strings**, because JavaScript numbers can't hold them exactly.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:3010
+    description: Local development (DELSIGN_PORT defaults to 3010)
+security:
+  - bearerAuth: []
+tags:
+  - name: users
+    description: RSA key registration and lookup
+  - name: wallets
+    description: Wallets and their addresses
+  - name: chain
+    description: Balances and transfers
+
+paths:
+  /api/v1/authping:
+    get:
+      operationId: authPing
+      summary: Check a token
+      description: Succeeds with an empty body if the token is valid. Useful as a login check.
+      responses:
+        "200":
+          description: The token is valid. The body is empty.
+        "403":
+          $ref: "#/components/responses/AuthFailed"
+
+  /api/v1/keyreg:
+    post:
+      operationId: registerKey
+      tags: [users]
+      summary: Register or replace your RSA public key
+      description: |
+        **First registration:** send `email`, `pubkey` and `sig4reg`. The JWT is enough.
+
+        **Replacement:** if a key is already registered, also send `sig4rotate`, the
+        *current* key's signature over `email + pubkey` (the new key's hex appended to the
+        email). Without it, or with a bad one, the request gets a 403. There is no recovery
+        path for a lost key.
+
+        `sig4reg` is always the *new* key's signature over `email`, proving the caller holds it.
+        See client-guide.md for the exact messages.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeyReg"
+            examples:
+              firstRegistration:
+                summary: First registration (test vector "register", key1)
+                value:
+                  email: "a@example.com"
+                  pubkey: "30820122300d06092a864886f70d01010105000382010f003082010a0282010100cf8d53d76b4f3f289dd5ecbd45ddd97f2c91a90e2bf8fc45f994e857af2db2449dbaedb26445295a4dcad454e7c41aa672f1012b1e58b7fffcf2bedf26a06d9edb8c86f5e8f8e80236df8470960a51e080612e85ab3c2cb2e332ab937c4a2eb1db1dc27283c661fb17ed4b6c72d02c4ca33972ea86fa157a950db18f294dd3276ef36374215dbe334dd04434715a61ce7e777b1b2cb8b7d4c7137d9bd39cd92e9a4171ff2e588de1c9cf5f23c568b60638417b7ae9c2d9d854cd1e1cac39a056e6135abc91c25b48d39db9066f87b42b8eb0185d4442452c3824acf71e81e1276e30b56225e4ee204c8b0c30993b5e5a65939bcbc5c08786356d5c532a6bcd190203010001"
+                  sig4reg: "142debafba6f1c33bc5f957e5f8b2e68881c4be8ac7ecfdfeefa86a0daee2856321761e58465b3ccb699e3244f0bfb408b928f16e6b5c8505a039ed21c50203c28b65581e77355b241bad8998fafeb560fe68f23ab1e2220504c716f8d92e034934f43d73a3f085f68d46c49716fe91f6dd44bc3c30b8c2e4a990031e2a6303aeb4f4a10e3ab6a01775b3cbbbe3ef4cd37403cbf3814293f1bc82ac5b96d5ee423bad5f6f3947df1b31128a0b687e3a9cf5f0de976e3d74004a173746cc52c9fa0df196b2ac10a8e48f74cdf25bb4bd3831818361aedefb0c95dc560c226245ec77112ffe3a1ff4a825593ddb56b65b87dcf8b4a590ed48f7e1046c689213430"
+              rotation:
+                summary: Replacing key1 with key2 (test vector "rotate")
+                value:
+                  email: "a@example.com"
+                  pubkey: "30820122300d06092a864886f70d01010105000382010f003082010a0282010100b309b2261dc88f0429660ae7f55f9e47d7f4e37f37fbd93d6f64a6bb0b34806ec7d0b45109e1edff182bc353748a2486304c80cfbf97c8bda0c37494a0294b83bd91ee7c0ae3efa31c356717583641b8aef5310b73eb74dd888fbe1d1327102361cdbc6db1423db63aac14855fc395b2881193541386a2b54856df2b2f4bab1dc01c1a8c7ecb7affd972fc6e55e75a7d3e09d2768037e7d3e208e4129991c5dc60e2af19d0f92ee7a7c5c6bf6b7c555a44c4905267df7f1787f3ecf16f4d9fa86438635e380e1ab7ffb05c8b00f2c8c3ad070cf6500baf5324d6d4d5ad16bdcc3f974b49b8a74f44325576094e272032fe00fd1589ba00738233a47b9bcaca210203010001"
+                  sig4reg: "ae3bc83c6457c8faff091bbae910c1a87a944995187d2650188f782d056b0907e85c6f0e47d76a23d8a080132fc505cb79d3e3016165b95530dd5cefc2e0bab1340bddb5db2f2138e1cfa2ab80e6fff0f28589c46a5bc4f7939170939bdc6b81acec4ce1c72a049f8e2f41d52171495ba85c335adde718ad4e789a402f2deac2c89d0c87939af6a981d64f46331f2eb5b7acb8bb01e8c28031667e23f34c1ae5c4c8b023c37fe4ea832768df39a3e7b69464abeb1e996edd9be4409bdc6c07dede8055ee77d720a10ff65467f2ffabc9e12d917efe8f4294f9cec0b883212074e9979ac51711664f143622b4fde0b7d8c8f46d5852205c251c5233257ae83a5c"
+                  sig4rotate: "0ebafa69625d093a2a2c3b2af64e84631ed8406e9a6210ee806bd5f69d341563a47a4621f6fa595526d3b6ee99062015f317f7dce17aef40ff41b80118503def59e3b359e299362d6640276d3fe5fe5d6f3c7ff3d58c2a6ea33e04fa82e16ecdbabf680185efa33b4d9b18ada9df39b9b9ea802e7ca013e3a58ada67bfea3cf28cc2839920057295356fdc5ad2bdd90ba44cfe87b4ec50595e49747b69fe0f1fc6963769d206be6543bced7aa48e677593a7623af01ee2eddf74cdb5e41d0ad07b7b7de3c3ec244a3a90f6ebad4f374a7f8c144b9ef94fc47a80d977cc9e76ad1db2808cfdc282ca681ca8857e65a51a12a52bb45d10ba7bf24addc6b9fe529f"
+      responses:
+        "200":
+          description: Key registered or replaced. The body is empty.
+        "400":
+          description: |
+            Malformed body, a missing field, `email` not matching the token's email,
+            a `pubkey` that isn't a hex PKIX RSA key, or a `sig4reg` that doesn't verify.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: Email mismatch
+        "403":
+          description: |
+            Either a token problem (see AuthFailed), or a key is already registered and
+            `sig4rotate` is missing or doesn't verify against it.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: A key is already registered; replacing it needs sig4rotate from the current key
+        "409":
+          description: |
+            The registered key changed while this request was being handled (a concurrent
+            registration or rotation). Fetch `GET /api/v1/users/{email}` and retry if needed.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/NotJSON"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/users/{email}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Your own registration
+      description: Only your own email can be looked up; any other email gets a 403.
+      parameters:
+        - name: email
+          in: path
+          required: true
+          description: Must equal the token's `email` claim.
+          schema:
+            type: string
+          example: a@example.com
+      responses:
+        "200":
+          description: Your registered key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfo"
+              example:
+                email: a@example.com
+                pubkey: "30820122300d06092a864886f70d01010105000382010f003082010a0282010100cf8d53d76b4f3f289dd5ecbd45ddd97f2c91a90e2bf8fc45f994e857af2db2449dbaedb26445295a4dcad454e7c41aa672f1012b1e58b7fffcf2bedf26a06d9edb8c86f5e8f8e80236df8470960a51e080612e85ab3c2cb2e332ab937c4a2eb1db1dc27283c661fb17ed4b6c72d02c4ca33972ea86fa157a950db18f294dd3276ef36374215dbe334dd04434715a61ce7e777b1b2cb8b7d4c7137d9bd39cd92e9a4171ff2e588de1c9cf5f23c568b60638417b7ae9c2d9d854cd1e1cac39a056e6135abc91c25b48d39db9066f87b42b8eb0185d4442452c3824acf71e81e1276e30b56225e4ee204c8b0c30993b5e5a65939bcbc5c08786356d5c532a6bcd190203010001"
+        "403":
+          description: A token problem (see AuthFailed), or the email isn't yours.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+        "404":
+          description: You haven't registered a key yet.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: No key registered
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/wallets:
+    post:
+      operationId: createWallet
+      tags: [wallets]
+      summary: Create a wallet
+      description: |
+        Creates an empty wallet. No request body is needed (any body is ignored).
+        Wallet ids are unique across all users, so don't assume your first wallet is 1.
+      responses:
+        "201":
+          description: The new wallet.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletInfo"
+              example:
+                id: 2
+        "403":
+          $ref: "#/components/responses/AuthFailed"
+        "500":
+          $ref: "#/components/responses/ServerError"
+    get:
+      operationId: listWallets
+      tags: [wallets]
+      summary: Your wallet ids
+      responses:
+        "200":
+          description: Your wallet ids, in no particular order; `[]` if you have none.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: integer
+                  format: int64
+              example: [2, 5]
+        "403":
+          $ref: "#/components/responses/AuthFailed"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/wallets/{id}/addresses:
+    post:
+      operationId: createAddress
+      tags: [wallets]
+      summary: Create an address in one of your wallets
+      description: |
+        The server generates a new Ethereum key for the address and stores it encrypted.
+        No request body is needed. The new address has no funds.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: A wallet id from `createWallet` or `listWallets`.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+          example: 2
+      responses:
+        "201":
+          description: The new address, in checksum form.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EOA"
+              example:
+                eoa: "0x17155B71982feD535Fd6aeB084C9330e7d5C290f"
+        "400":
+          description: The wallet id isn't a positive integer.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: Invalid wallet id
+        "403":
+          description: A token problem (see AuthFailed), or the wallet doesn't exist or isn't yours.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: Wallet is not yours
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/walletctx:
+    get:
+      operationId: listWalletAddresses
+      tags: [wallets]
+      summary: All your wallets and addresses
+      description: |
+        One entry per address, ordered by wallet id. Wallets with no addresses don't appear;
+        use `listWallets` for those.
+      responses:
+        "200":
+          description: Your addresses with their wallet ids; `[]` if you have none.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WalletAddressPair"
+              example:
+                - walletId: 2
+                  address: "0x17155B71982feD535Fd6aeB084C9330e7d5C290f"
+                - walletId: 2
+                  address: "0x812B8C4D02f5901C7Dcdac0526bA915B61dAc33c"
+        "403":
+          $ref: "#/components/responses/AuthFailed"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /api/v1/wallets/balance/{address}:
+    get:
+      operationId: getBalance
+      tags: [chain]
+      summary: Balance of an address, in wei
+      description: Works for any Ethereum address, not only your own.
+      parameters:
+        - name: address
+          in: path
+          required: true
+          description: An Ethereum address, in any letter case.
+          schema:
+            $ref: "#/components/schemas/Address"
+          example: "0x17155B71982feD535Fd6aeB084C9330e7d5C290f"
+      responses:
+        "200":
+          description: The latest balance. `address` is returned in checksum form.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Balance"
+              example:
+                address: "0x17155B71982feD535Fd6aeB084C9330e7d5C290f"
+                amount: "1000000000000000000"
+        "400":
+          description: Not an Ethereum address.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: Invalid address
+        "403":
+          $ref: "#/components/responses/AuthFailed"
+        "502":
+          $ref: "#/components/responses/NodeError"
+
+  /api/v1/wallets/send:
+    post:
+      operationId: sendEth
+      tags: [chain]
+      summary: Send ETH from one of your addresses
+      description: |
+        `sig` is the user's RSA signature over the concatenation
+        `source + dest + amount + requestId + expiry`, using the strings exactly as they
+        appear in this request (addresses in the same letter case, `expiry` in decimal).
+        See client-guide.md.
+
+        Each request needs a fresh `requestId`; a reused one gets a 409. `expiry` must be
+        in the future and at most 5 minutes ahead. The `requestId` is recorded once the
+        signature verifies, **before** the transaction is broadcast, so after a 502 retry
+        with a new `requestId` (and a new signature), not the same body.
+
+        The server sends an EIP-1559 transfer (21000 gas), so `dest` must be an account
+        that accepts plain ETH transfers.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendRequest"
+            examples:
+              send:
+                summary: Send 0.001 ETH (test vector "send", signed with key1)
+                value:
+                  source: "0x17155B71982feD535Fd6aeB084C9330e7d5C290f"
+                  dest: "0x812B8C4D02f5901C7Dcdac0526bA915B61dAc33c"
+                  amount: "1000000000000000"
+                  requestId: "6f1c2a7e-0b9d-4c55-9a43-2f1e8d7c6b5a"
+                  expiry: 1800000060
+                  sig: "bf2354beefdb4609daea20770d07db0ba8faac977625556a4d4e0a21445870f9c789cbeac45e07a69606fb1a8143983d338cec94620236aedc3fbfaeb5be9d80b6dabe49cb27ddb89e2ab0f7a0de4f30d8119cceda90e81b90b806692e623cb42ec5f9f97a07264324406ffbcc190f0b7c9e5baa49328ab5647472ff041d836c7370521b76c65a9d45b036b69024a197b853e3d46b459fd2f034c73937a1f019ea1010f9e2f00b1924cada5dd836b75a59894753858c7274e2d19716a8d5a4d2534072b83c04e160646837e6a9967f00e3ed7a7e82026f31b08c8683bc1faf52cbe34a4b288480cc526fd3e90ac1d65fc9beeb9230b4822d0822b82395ff7704"
+      responses:
+        "200":
+          description: The transaction was broadcast (not yet mined).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendResult"
+              example:
+                txnid: "0x45d1e539f4bf4b3304730d126fef71bbaf7240d3f828d80736f3059c1944fe66"
+        "400":
+          description: |
+            Malformed body, an invalid address, an `amount` that isn't a canonical positive
+            decimal string (a JSON number is rejected too), a `requestId` that isn't a UUID,
+            or an `expiry` in the past or more than 5 minutes ahead.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              examples:
+                numberAmount:
+                  value: 'Request body could not be decoded: amount must be a JSON string of decimal digits (wei), e.g. "1000"'
+                expired:
+                  value: request expired
+        "401":
+          description: |
+            `sig` doesn't verify against your registered key. Usually the message was built
+            differently from the request (letter case, amount formatting), or the browser's
+            key isn't the registered one.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: Invalid signature
+        "403":
+          description: A token problem (see AuthFailed), or `source` isn't one of your addresses.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: Source address is not yours
+        "409":
+          description: This `requestId` was already used. Nothing new was sent.
+          content:
+            text/plain:
+              schema:
+                $ref: "#/components/schemas/ErrorText"
+              example: Request already processed (requestId reused)
+        "413":
+          $ref: "#/components/responses/TooLarge"
+        "415":
+          $ref: "#/components/responses/NotJSON"
+        "500":
+          $ref: "#/components/responses/ServerError"
+        "502":
+          $ref: "#/components/responses/NodeError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        An HS256 JWT signed with the server's `DELSIGN_JWT_SECRET`, issued by the identity
+        provider. It must have a non-empty `email` claim and an `exp` claim. Missing,
+        malformed, expired or wrongly signed tokens get a 403.
+
+  responses:
+    AuthFailed:
+      description: |
+        Missing `Authorization` header, not `Bearer <token>`, or the token is invalid,
+        expired, has no `exp`, uses an algorithm other than HS256, or has no `email` claim.
+      content:
+        text/plain:
+          schema:
+            $ref: "#/components/schemas/ErrorText"
+          example: Invalid token
+    NotJSON:
+      description: A `Content-Type` header was sent and it isn't `application/json`.
+      content:
+        text/plain:
+          schema:
+            $ref: "#/components/schemas/ErrorText"
+          example: Content-Type header is not application/json
+    TooLarge:
+      description: The request body is over 1 MB.
+      content:
+        text/plain:
+          schema:
+            $ref: "#/components/schemas/ErrorText"
+    ServerError:
+      description: An internal error. The body is generic; details are only in the server log.
+      content:
+        text/plain:
+          schema:
+            $ref: "#/components/schemas/ErrorText"
+          example: Internal Server Error
+    NodeError:
+      description: |
+        The Ethereum node couldn't be reached or rejected the request (for a send: e.g.
+        insufficient funds for value plus gas). The body has the node's error.
+      content:
+        text/plain:
+          schema:
+            $ref: "#/components/schemas/ErrorText"
+          example: "ethereum node error: broadcast: insufficient funds for gas * price + value"
+
+  schemas:
+    ErrorText:
+      type: string
+      description: A short human-readable message, followed by a newline. Not a stable contract.
+
+    Address:
+      type: string
+      description: A 20-byte Ethereum address as 0x-prefixed hex, in any letter case.
+      pattern: "^0[xX][0-9a-fA-F]{40}$"
+
+    Wei:
+      type: string
+      description: |
+        An amount in wei as a base-10 string, with no sign, leading zeros, decimal point or
+        exponent, at most 2^256 - 1. Parse with `BigInt(s)` in JavaScript, never `Number`.
+      pattern: "^(0|[1-9][0-9]*)$"
+      maxLength: 78
+      examples: ["1000000000000000000"]
+
+    HexString:
+      type: string
+      description: Lowercase or uppercase hex, no 0x prefix.
+      pattern: "^[0-9a-fA-F]+$"
+
+    KeyReg:
+      type: object
+      additionalProperties: false
+      required: [email, pubkey, sig4reg]
+      properties:
+        email:
+          type: string
+          description: Must equal the token's `email` claim.
+        pubkey:
+          $ref: "#/components/schemas/HexString"
+          description: The new RSA public key, hex of its PKIX (SubjectPublicKeyInfo) DER encoding.
+        sig4reg:
+          $ref: "#/components/schemas/HexString"
+          description: The new key's PKCS#1 v1.5 SHA-256 signature over `email`, hex.
+        sig4rotate:
+          $ref: "#/components/schemas/HexString"
+          description: |
+            Only when replacing a registered key: the current key's signature over
+            `email + pubkey`, hex.
+
+    UserInfo:
+      type: object
+      additionalProperties: false
+      required: [email, pubkey]
+      properties:
+        email:
+          type: string
+        pubkey:
+          $ref: "#/components/schemas/HexString"
+
+    WalletInfo:
+      type: object
+      additionalProperties: false
+      required: [id]
+      properties:
+        id:
+          type: integer
+          format: int64
+
+    EOA:
+      type: object
+      additionalProperties: false
+      required: [eoa]
+      properties:
+        eoa:
+          $ref: "#/components/schemas/Address"
+
+    WalletAddressPair:
+      type: object
+      additionalProperties: false
+      required: [walletId, address]
+      properties:
+        walletId:
+          type: integer
+          format: int64
+        address:
+          $ref: "#/components/schemas/Address"
+
+    Balance:
+      type: object
+      additionalProperties: false
+      required: [address, amount]
+      properties:
+        address:
+          $ref: "#/components/schemas/Address"
+        amount:
+          $ref: "#/components/schemas/Wei"
+
+    SendRequest:
+      type: object
+      additionalProperties: false
+      required: [source, dest, amount, requestId, expiry, sig]
+      properties:
+        source:
+          $ref: "#/components/schemas/Address"
+          description: One of your addresses.
+        dest:
+          $ref: "#/components/schemas/Address"
+        amount:
+          $ref: "#/components/schemas/Wei"
+          description: Positive.
+        requestId:
+          type: string
+          format: uuid
+          description: A fresh UUID per request, e.g. from `crypto.randomUUID()`.
+          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+        expiry:
+          type: integer
+          format: int64
+          description: Unix time in seconds; in the future and at most 300 seconds ahead.
+        sig:
+          $ref: "#/components/schemas/HexString"
+          description: RSA PKCS#1 v1.5 SHA-256 signature over `source + dest + amount + requestId + expiry`, hex.
+
+    SendResult:
+      type: object
+      additionalProperties: false
+      required: [txnid]
+      properties:
+        txnid:
+          type: string
+          description: The transaction hash, 0x-prefixed.
+          pattern: "^0x[0-9a-fA-F]{64}$"

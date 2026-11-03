@@ -1,0 +1,1311 @@
+=== Symbol Results ===
+
+Vulnerability #1: GO-2026-6809
+    Distrust compromised intermediate certificates in crypto/x509
+  More info: https://pkg.go.dev/vuln/GO-2026-6809
+  Standard library
+    Found in: crypto/x509@go1.26.5
+    Fixed in: crypto/x509@go1.26.10
+    Example traces found:
+      #1: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader, which eventually calls x509.Certificate.Verify
+
+Vulnerability #2: GO-2026-6617
+    HTTP/2 server crash due to HPACK encoder race in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6617
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #2: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #3: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #4: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #5: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #6: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #7: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #8: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #9: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #10: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #11: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #12: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #13: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #14: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #15: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #16: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #17: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #18: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #19: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #20: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #21: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #22: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #23: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #24: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #25: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #26: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #28: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #29: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #30: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #31: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #32: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #33: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #34: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #35: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #36: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #37: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #38: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #39: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #40: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #41: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #42: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #43: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #44: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #45: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #46: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #47: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #48: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #49: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #50: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #51: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #52: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #53: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #54: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #55: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #56: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #57: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #58: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #59: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #60: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #61: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #62: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #63: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #64: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #65: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #67: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #68: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #69: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #70: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #71: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #72: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #73: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #74: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #75: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #76: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #77: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #78: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #79: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #80: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #81: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #82: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #83: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #84: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #85: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #86: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #87: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #88: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #89: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #90: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #91: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #92: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #93: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #94: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #95: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #96: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #97: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #98: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #99: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #100: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #101: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #102: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #103: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #104: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #105: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #106: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #107: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #108: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #109: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #110: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #111: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #112: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #113: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #114: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #115: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #116: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #117: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #118: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #119: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #120: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #121: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #122: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #123: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #124: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #125: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #126: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #127: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #128: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #129: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #130: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #131: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #132: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #133: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #134: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #135: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #136: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #137: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #138: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #139: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+      #140: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+
+Vulnerability #3: GO-2026-6613
+    HTTP/1 server connection desynchronization after 2xx CONNECT response in
+    net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6613
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #2: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #3: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #4: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #5: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #6: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #7: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader, which eventually calls http.Header.Del
+      #8: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #9: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #10: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #11: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #12: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #13: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #14: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #15: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #16: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #17: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #18: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #19: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #20: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #21: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #22: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #23: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #24: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #25: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #26: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #27: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls http.checkConnErrorWriter.Write
+      #28: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls http.chunkWriter.Write
+      #29: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #30: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.expectContinueReader.Close
+      #31: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #32: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #33: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #34: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #35: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #36: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.maxBytesReader.Close
+      #37: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #38: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #39: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #40: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #41: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls http.persistConnWriter.Write
+      #42: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.readTrackingBody.Close
+      #43: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #44: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #45: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #46: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #47: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #48: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+
+Vulnerability #4: GO-2026-6612
+    Double flow control refund on HTTP/2 server streams in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6612
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #2: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #3: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #4: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #5: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #6: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #7: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #8: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #9: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #10: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #11: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #12: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #13: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #14: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #15: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #16: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #17: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #18: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #19: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #20: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #21: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #22: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #23: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #24: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #25: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #26: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #28: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #29: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #30: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #31: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #32: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #33: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #34: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #35: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #36: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #37: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #38: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #39: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #40: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #41: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #42: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #43: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #44: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #45: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #46: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #47: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #48: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #49: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #50: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #51: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #52: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #53: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #54: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #55: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #56: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #57: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #58: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #59: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #60: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #61: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #62: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #63: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #64: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #65: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #67: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #68: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #69: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #70: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #71: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #72: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #73: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #74: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #75: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #76: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #77: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #78: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #79: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #80: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #81: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #82: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #83: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #84: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #85: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #86: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #87: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #88: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #89: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #90: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #91: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #92: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #93: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #94: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #95: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #96: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #97: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #98: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #99: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #100: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #101: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #102: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #103: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #104: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #105: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #106: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #107: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #108: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #109: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #110: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #111: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #112: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #113: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #114: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #115: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #116: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #117: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #118: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #119: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #120: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #121: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #122: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #123: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #124: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #125: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #126: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #127: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #128: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #129: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #130: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #131: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #132: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #133: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #134: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #135: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #136: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #137: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #138: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #139: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+      #140: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+
+Vulnerability #5: GO-2026-6611
+    Excessive CPU consumption from repeated initial window changes in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6611
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #2: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #3: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #4: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #5: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #6: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #7: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #8: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #9: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #10: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #11: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #12: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #13: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #14: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #15: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #16: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #17: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #18: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #19: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #20: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #21: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #22: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #23: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #24: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #25: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #26: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #28: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #29: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #30: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #31: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #32: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #33: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #34: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #35: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #36: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #37: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #38: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #39: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #40: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #41: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #42: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #43: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #44: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #45: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #46: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #47: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #48: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #49: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #50: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #51: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #52: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #53: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #54: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #55: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #56: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #57: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #58: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #59: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #60: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #61: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #62: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #63: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #64: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #65: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #67: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #68: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #69: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #70: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #71: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #72: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #73: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #74: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #75: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #76: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #77: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #78: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #79: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #80: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #81: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #82: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #83: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #84: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #85: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #86: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #87: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #88: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #89: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #90: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #91: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #92: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #93: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #94: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #95: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #96: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #97: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #98: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #99: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #100: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #101: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #102: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #103: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #104: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #105: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #106: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #107: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #108: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #109: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #110: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #111: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #112: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #113: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #114: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #115: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #116: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #117: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #118: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #119: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #120: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #121: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #122: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #123: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #124: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #125: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #126: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #127: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #128: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #129: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #130: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #131: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #132: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #133: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #134: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #135: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #136: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #137: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #138: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #139: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+      #140: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+
+Vulnerability #6: GO-2026-6610
+    HTTP/2 transport accepts malformed framing-related headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6610
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #2: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+
+Vulnerability #7: GO-2026-6609
+    Lack of limit on size of parsed Range headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6609
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+
+Vulnerability #8: GO-2026-6608
+    Memory limit bypass when parsing MIME headers in net/textproto,
+    mime/multipart
+  More info: https://pkg.go.dev/vuln/GO-2026-6608
+  Standard library
+    Found in: net/textproto@go1.26.5
+    Fixed in: net/textproto@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls textproto.Reader.ReadMIMEHeader
+
+Vulnerability #9: GO-2026-6607
+    Reject malformed ECH outer extension references in crypto/tls
+  More info: https://pkg.go.dev/vuln/GO-2026-6607
+  Standard library
+    Found in: crypto/tls@go1.26.5
+    Fixed in: crypto/tls@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls tls.Conn.Handshake
+      #2: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe, which eventually calls tls.Conn.HandshakeContext
+      #3: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls tls.Conn.Read
+      #4: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader, which eventually calls tls.Conn.Write
+      #5: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls tls.Dialer.DialContext
+
+Vulnerability #10: GO-2026-6605
+    HTTP/1 client connection desynchronization after CONNECT rejection in
+    net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6605
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+
+Vulnerability #11: GO-2026-6603
+    HTTP/2 server memory exhaustion due to Trailer headers in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6603
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.9
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #2: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.CanonicalHeaderKey
+      #3: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #4: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+      #5: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #6: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Dir.Open
+      #7: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #8: wallets/wallet.go:164:13: wallets.GetWalletAndAddressesForUser calls http.Error
+      #9: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #10: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.HandlerFunc.ServeHTTP
+      #11: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #12: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls http.Header.Add
+      #13: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #14: helpers/parse.go:26:17: helpers.DecodeJSONBody calls http.Header.Get
+      #15: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #16: wallets/wallet.go:175:17: wallets.GetWalletAndAddressesForUser calls http.Header.Set
+      #17: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #18: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+      #19: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #20: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.NewRequestWithContext
+      #21: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #22: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ProxyFromEnvironment
+      #23: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #24: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.ReadResponse
+      #25: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #26: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.Redirect
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #28: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.AddCookie
+      #29: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #30: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Request.Write
+      #31: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #32: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Response.Cookies
+      #33: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #34: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.ServeContent
+      #35: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #36: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.body.Close
+      #37: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #38: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.body.Read
+      #39: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #40: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyEOFSignal.Close
+      #41: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #42: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.bodyEOFSignal.Read
+      #43: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #44: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.bodyLocked.Read
+      #45: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #46: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.bufioFlushWriter.Write
+      #47: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #48: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.cancelTimerBody.Close
+      #49: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #50: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.cancelTimerBody.Read
+      #51: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #52: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.checkConnErrorWriter.Write
+      #53: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #54: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.chunkWriter.Write
+      #55: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #56: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.connReader.Read
+      #57: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #58: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.expectContinueReader.Read
+      #59: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #60: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.gzipReader.Close
+      #61: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #62: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.gzipReader.Read
+      #63: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #64: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2ConnectionError.Error
+      #65: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2ErrCode.String
+      #67: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #68: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameHeader.String
+      #69: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #70: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameType.String
+      #71: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #72: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2FrameWriteRequest.String
+      #73: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #74: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2GoAwayError.Error
+      #75: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #76: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2Setting.String
+      #77: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #78: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2SettingID.String
+      #79: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #80: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2StreamError.Error
+      #81: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #82: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2bufferedWriterTimeoutWriter.Write
+      #83: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #84: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2chunkWriter.Write
+      #85: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #86: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2connError.Error
+      #87: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #88: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2duplicatePseudoHeaderError.Error
+      #89: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #90: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2gzipReader.Close
+      #91: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #92: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2gzipReader.Read
+      #93: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #94: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldNameError.Error
+      #95: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #96: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2headerFieldValueError.Error
+      #97: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #98: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.http2pseudoHeaderError.Error
+      #99: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #100: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2requestBody.Read
+      #101: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #102: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.http2responseWriter.Write
+      #103: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #104: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.http2responseWriter.WriteHeader
+      #105: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #106: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2responseWriter.WriteString
+      #107: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #108: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.http2stickyErrWriter.Write
+      #109: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #110: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.http2transportResponseBody.Close
+      #111: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #112: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.http2transportResponseBody.Read
+      #113: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #114: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls http.http2writeData.String
+      #115: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #116: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.loggingConn.Read
+      #117: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #118: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.loggingConn.Write
+      #119: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #120: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.maxBytesReader.Read
+      #121: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #122: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls http.onceCloseListener.Close
+      #123: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #124: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.persistConn.Read
+      #125: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #126: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.persistConnWriter.ReadFrom
+      #127: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #128: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls http.persistConnWriter.Write
+      #129: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #130: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readTrackingBody.Read
+      #131: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #132: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls http.readWriteCloserBody.Read
+      #133: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #134: middleware/authcheck.go:42:6: middleware.AuthzMiddleWare calls negroni.middleware.ServeHTTP, which eventually calls http.redirectHandler.ServeHTTP
+      #135: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #136: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls http.response.Write
+      #137: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #138: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader
+      #139: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+      #140: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls http.transportReadFromServerError.Error
+
+Vulnerability #12: GO-2026-6278
+    Gorilla WebSocket Uses Cryptographically Weak PRNG for WebSocket Mask Key in
+    github.com/gorilla/websocket
+  More info: https://pkg.go.dev/vuln/GO-2026-6278
+  Module: github.com/gorilla/websocket
+    Found in: github.com/gorilla/websocket@v1.4.2
+    Fixed in: github.com/gorilla/websocket@v1.5.3
+    Example traces found:
+      #1: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls websocket.Conn.Close
+      #2: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls websocket.Conn.ReadJSON
+      #3: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls websocket.Conn.WriteJSON
+      #4: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls websocket.Conn.WriteMessage
+      #5: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls websocket.Dialer.DialContext
+      #6: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls websocket.flateReadWrapper.Read
+      #7: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls websocket.flateWriteWrapper.Write
+      #8: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls websocket.messageReader.Read
+      #9: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls websocket.messageWriter.Write
+      #10: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls websocket.truncWriter.Write
+
+Vulnerability #13: GO-2026-6218
+    Avoid quadratic complexity in resolvePath in net/url
+  More info: https://pkg.go.dev/vuln/GO-2026-6218
+  Standard library
+    Found in: net/url@go1.26.5
+    Fixed in: net/url@go1.26.6
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls url.URL.Parse
+
+Vulnerability #14: GO-2026-6090
+    Limit handshake messages we are willing to accept post-handshake in
+    crypto/tls
+  More info: https://pkg.go.dev/vuln/GO-2026-6090
+  Standard library
+    Found in: crypto/tls@go1.26.5
+    Fixed in: crypto/tls@go1.26.6
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls tls.Conn.Handshake
+      #2: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe, which eventually calls tls.Conn.HandshakeContext
+      #3: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls tls.Conn.Read
+      #4: wallets/wallet.go:176:16: wallets.GetWalletAndAddressesForUser calls http.response.WriteHeader, which eventually calls tls.Conn.Write
+      #5: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls tls.Dialer.DialContext
+
+Vulnerability #15: GO-2026-6089
+    Apply ReadHeaderTimeout when doing unencrypted HTTP/2 check in net/http
+  More info: https://pkg.go.dev/vuln/GO-2026-6089
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.6
+    Example traces found:
+      #1: main.go:46:28: delsignbackend.RunServer calls http.ListenAndServe
+
+Vulnerability #16: GO-2026-5972
+    Enforce maximum recursion depth in encoding/asn1
+  More info: https://pkg.go.dev/vuln/GO-2026-5972
+  Standard library
+    Found in: encoding/asn1@go1.26.5
+    Fixed in: encoding/asn1@go1.26.6
+    Example traces found:
+      #1: chain/ethereum.go:205:40: chain.validateSignature calls x509.ParsePKIXPublicKey, which calls asn1.Unmarshal
+
+Vulnerability #17: GO-2026-5026
+    Invoking failure to reject ASCII-only Punycode-encoded labels in
+    golang.org/x/net/idna
+  More info: https://pkg.go.dev/vuln/GO-2026-5026
+  Standard library
+    Found in: net/http@go1.26.5
+    Fixed in: net/http@go1.26.6
+    Example traces found:
+      #1: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls http.Client.Do
+
+Vulnerability #18: GO-2026-4508
+    Go Ethereum affected by DoS via malicious p2p message in
+    github.com/ethereum/go-ethereum
+  More info: https://pkg.go.dev/vuln/GO-2026-4508
+  Module: github.com/ethereum/go-ethereum
+    Found in: github.com/ethereum/go-ethereum@v1.13.2
+    Fixed in: github.com/ethereum/go-ethereum@v1.17.0
+    Example traces found:
+      #1: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.Format
+      #2: wallets/address.go:71:47: wallets.EOAFromPublicKey calls common.Address.Hex
+      #3: wallets/wallet.go:150:18: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Scan, which eventually calls common.Address.Scan
+      #4: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.String
+      #5: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Address.Value
+      #6: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress, which calls common.BytesToAddress
+      #7: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction, which eventually calls common.CopyBytes
+      #8: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls common.FromHex
+      #9: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.Format
+      #10: chain/ethereum.go:94:28: chain.EthereumChain.SendEth calls common.Hash.Hex
+      #11: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.String
+      #12: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Hash.Value
+      #13: chain/ethereum.go:64:83: chain.EthereumChain.SendEth calls common.HexToAddress
+      #14: chain/ethereum.go:20:2: chain.init calls types.init, which calls common.HexToHash
+      #15: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.StorageSize.String
+      #16: chain/ethereum.go:19:2: chain.init calls common.init
+      #17: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA
+      #18: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub
+      #19: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey
+      #20: chain/ethereum.go:20:2: chain.init calls types.init, which calls crypto.Keccak256Hash
+      #21: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress
+      #22: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which calls crypto.Sign
+      #23: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA
+      #24: wallets/address.go:12:2: wallets.init calls crypto.init
+      #25: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt
+      #26: chain/ethereum.go:64:41: chain.EthereumChain.SendEth calls ethclient.Client.PendingNonceAt
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction
+      #28: chain/ethereum.go:74:45: chain.EthereumChain.SendEth calls ethclient.Client.SuggestGasPrice
+      #29: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial
+      #30: chain/ethereum.go:21:2: chain.init calls ethclient.init
+      #31: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls ethereum.init
+      #32: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls hexutil.Big.String
+      #33: wallets/address.go:57:40: wallets.AddressDB.ReadPrivateKeyForAddress calls hexutil.Decode
+      #34: wallets/address.go:81:44: wallets.NewAddress calls hexutil.Encode
+      #35: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.EncodeBig
+      #36: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.Uint64.String
+      #37: chain/ethereum.go:156:27: chain.SendEth calls hexutil.decError.Error
+      #38: wallets/address.go:11:2: wallets.init calls hexutil.init
+      #39: chain/ethereum.go:20:2: chain.init calls types.init, which calls kzg4844.init
+      #40: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Debug
+      #41: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Error
+      #42: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls log.Info
+      #43: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls log.Lvl.String
+      #44: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Root
+      #45: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls log.Trace
+      #46: chain/ethereum.go:20:2: chain.init calls types.init, which calls log.init
+      #47: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Debug
+      #48: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.New
+      #49: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Trace
+      #50: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Warn
+      #51: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls math.PaddedBigBytes
+      #52: wallets/address.go:12:2: wallets.init calls crypto.init, which calls math.init
+      #53: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls mclock.init
+      #54: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.GetOrRegisterHistogramLazy
+      #55: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredGauge
+      #56: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredTimer
+      #57: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilGauge.Inc
+      #58: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilTimer.UpdateSince
+      #59: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardGauge.Inc
+      #60: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardTimer.UpdateSince
+      #61: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.init
+      #62: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls netutil.init
+      #63: chain/ethereum.go:20:2: chain.init calls types.init, which calls params.init
+      #64: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls rlp.Encode
+      #65: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlp.EncodeToBytes
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rlp.Kind.String
+      #67: wallets/address.go:12:2: wallets.init calls crypto.init, which calls rlp.init
+      #68: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #69: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #70: chain/ethereum.go:156:27: chain.SendEth calls rlp.structFieldError.Error
+      #71: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.ProcessFields
+      #72: chain/ethereum.go:156:27: chain.SendEth calls rlpstruct.TagError.Error
+      #73: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.Type.DefaultNilValue
+      #74: wallets/address.go:12:2: wallets.init calls crypto.init, which eventually calls rlpstruct.init
+      #75: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls rpc.BlockNumber.String
+      #76: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls rpc.Client.CallContext
+      #77: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls rpc.DialContext
+      #78: chain/ethereum.go:156:27: chain.SendEth calls rpc.HTTPError.Error
+      #79: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #80: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #81: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #82: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #83: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rpc.idForLog.String
+      #84: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls rpc.init
+      #85: chain/ethereum.go:156:27: chain.SendEth calls rpc.jsonError.Error
+      #86: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.newWebsocketCodec
+      #87: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.stdioConn.Read
+      #88: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls rpc.stdioConn.Write
+      #89: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls rpc.wsHandshakeError.Error
+      #90: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.Add
+      #91: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub, which eventually calls secp256k1.BitCurve.IsOnCurve
+      #92: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls secp256k1.BitCurve.Params
+      #93: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA, which eventually calls secp256k1.BitCurve.ScalarBaseMult
+      #94: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.ScalarMult
+      #95: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls secp256k1.S256
+      #96: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which eventually calls secp256k1.Sign
+      #97: wallets/address.go:12:2: wallets.init calls crypto.init, which calls secp256k1.init
+      #98: chain/ethereum.go:81:57: chain.EthereumChain.SendEth calls types.NewEIP155Signer
+      #99: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction
+      #100: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx
+      #101: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash
+      #102: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls types.Transaction.MarshalBinary
+      #103: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+      #104: chain/ethereum.go:20:2: chain.init calls types.init
+      #105: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+
+Vulnerability #19: GO-2026-4507
+    Go Ethereum affected by crash via malicious p2p message in
+    github.com/ethereum/go-ethereum
+  More info: https://pkg.go.dev/vuln/GO-2026-4507
+  Module: github.com/ethereum/go-ethereum
+    Found in: github.com/ethereum/go-ethereum@v1.13.2
+    Fixed in: github.com/ethereum/go-ethereum@v1.16.9
+    Example traces found:
+      #1: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub, which eventually calls secp256k1.BitCurve.IsOnCurve
+
+Vulnerability #20: GO-2026-4315
+    DoS via malicious p2p message affecting a vulnerable node in
+    github.com/ethereum/go-ethereum
+  More info: https://pkg.go.dev/vuln/GO-2026-4315
+  Module: github.com/ethereum/go-ethereum
+    Found in: github.com/ethereum/go-ethereum@v1.13.2
+    Fixed in: github.com/ethereum/go-ethereum@v1.16.8
+    Example traces found:
+      #1: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.Format
+      #2: wallets/address.go:71:47: wallets.EOAFromPublicKey calls common.Address.Hex
+      #3: wallets/wallet.go:150:18: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Scan, which eventually calls common.Address.Scan
+      #4: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.String
+      #5: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Address.Value
+      #6: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress, which calls common.BytesToAddress
+      #7: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction, which eventually calls common.CopyBytes
+      #8: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls common.FromHex
+      #9: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.Format
+      #10: chain/ethereum.go:94:28: chain.EthereumChain.SendEth calls common.Hash.Hex
+      #11: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.String
+      #12: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Hash.Value
+      #13: chain/ethereum.go:64:83: chain.EthereumChain.SendEth calls common.HexToAddress
+      #14: chain/ethereum.go:20:2: chain.init calls types.init, which calls common.HexToHash
+      #15: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.StorageSize.String
+      #16: chain/ethereum.go:19:2: chain.init calls common.init
+      #17: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA
+      #18: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub
+      #19: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey
+      #20: chain/ethereum.go:20:2: chain.init calls types.init, which calls crypto.Keccak256Hash
+      #21: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress
+      #22: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which calls crypto.Sign
+      #23: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA
+      #24: wallets/address.go:12:2: wallets.init calls crypto.init
+      #25: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt
+      #26: chain/ethereum.go:64:41: chain.EthereumChain.SendEth calls ethclient.Client.PendingNonceAt
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction
+      #28: chain/ethereum.go:74:45: chain.EthereumChain.SendEth calls ethclient.Client.SuggestGasPrice
+      #29: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial
+      #30: chain/ethereum.go:21:2: chain.init calls ethclient.init
+      #31: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls ethereum.init
+      #32: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls hexutil.Big.String
+      #33: wallets/address.go:57:40: wallets.AddressDB.ReadPrivateKeyForAddress calls hexutil.Decode
+      #34: wallets/address.go:81:44: wallets.NewAddress calls hexutil.Encode
+      #35: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.EncodeBig
+      #36: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.Uint64.String
+      #37: chain/ethereum.go:156:27: chain.SendEth calls hexutil.decError.Error
+      #38: wallets/address.go:11:2: wallets.init calls hexutil.init
+      #39: chain/ethereum.go:20:2: chain.init calls types.init, which calls kzg4844.init
+      #40: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Debug
+      #41: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Error
+      #42: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls log.Info
+      #43: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls log.Lvl.String
+      #44: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Root
+      #45: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls log.Trace
+      #46: chain/ethereum.go:20:2: chain.init calls types.init, which calls log.init
+      #47: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Debug
+      #48: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.New
+      #49: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Trace
+      #50: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Warn
+      #51: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls math.PaddedBigBytes
+      #52: wallets/address.go:12:2: wallets.init calls crypto.init, which calls math.init
+      #53: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls mclock.init
+      #54: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.GetOrRegisterHistogramLazy
+      #55: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredGauge
+      #56: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredTimer
+      #57: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilGauge.Inc
+      #58: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilTimer.UpdateSince
+      #59: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardGauge.Inc
+      #60: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardTimer.UpdateSince
+      #61: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.init
+      #62: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls netutil.init
+      #63: chain/ethereum.go:20:2: chain.init calls types.init, which calls params.init
+      #64: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls rlp.Encode
+      #65: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlp.EncodeToBytes
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rlp.Kind.String
+      #67: wallets/address.go:12:2: wallets.init calls crypto.init, which calls rlp.init
+      #68: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #69: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #70: chain/ethereum.go:156:27: chain.SendEth calls rlp.structFieldError.Error
+      #71: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.ProcessFields
+      #72: chain/ethereum.go:156:27: chain.SendEth calls rlpstruct.TagError.Error
+      #73: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.Type.DefaultNilValue
+      #74: wallets/address.go:12:2: wallets.init calls crypto.init, which eventually calls rlpstruct.init
+      #75: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls rpc.BlockNumber.String
+      #76: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls rpc.Client.CallContext
+      #77: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls rpc.DialContext
+      #78: chain/ethereum.go:156:27: chain.SendEth calls rpc.HTTPError.Error
+      #79: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #80: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #81: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #82: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #83: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rpc.idForLog.String
+      #84: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls rpc.init
+      #85: chain/ethereum.go:156:27: chain.SendEth calls rpc.jsonError.Error
+      #86: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.newWebsocketCodec
+      #87: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.stdioConn.Read
+      #88: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls rpc.stdioConn.Write
+      #89: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls rpc.wsHandshakeError.Error
+      #90: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.Add
+      #91: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub, which eventually calls secp256k1.BitCurve.IsOnCurve
+      #92: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls secp256k1.BitCurve.Params
+      #93: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA, which eventually calls secp256k1.BitCurve.ScalarBaseMult
+      #94: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.ScalarMult
+      #95: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls secp256k1.S256
+      #96: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which eventually calls secp256k1.Sign
+      #97: wallets/address.go:12:2: wallets.init calls crypto.init, which calls secp256k1.init
+      #98: chain/ethereum.go:81:57: chain.EthereumChain.SendEth calls types.NewEIP155Signer
+      #99: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction
+      #100: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx
+      #101: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash
+      #102: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls types.Transaction.MarshalBinary
+      #103: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+      #104: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+      #105: chain/ethereum.go:20:2: chain.init calls types.init
+
+Vulnerability #21: GO-2026-4314
+    High CPU usage leading to DoS via malicious p2p message in
+    github.com/ethereum/go-ethereum
+  More info: https://pkg.go.dev/vuln/GO-2026-4314
+  Module: github.com/ethereum/go-ethereum
+    Found in: github.com/ethereum/go-ethereum@v1.13.2
+    Fixed in: github.com/ethereum/go-ethereum@v1.16.8
+    Example traces found:
+      #1: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.Format
+      #2: wallets/address.go:71:47: wallets.EOAFromPublicKey calls common.Address.Hex
+      #3: wallets/wallet.go:150:18: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Scan, which eventually calls common.Address.Scan
+      #4: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.String
+      #5: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Address.Value
+      #6: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress, which calls common.BytesToAddress
+      #7: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction, which eventually calls common.CopyBytes
+      #8: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls common.FromHex
+      #9: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.Format
+      #10: chain/ethereum.go:94:28: chain.EthereumChain.SendEth calls common.Hash.Hex
+      #11: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.String
+      #12: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Hash.Value
+      #13: chain/ethereum.go:64:83: chain.EthereumChain.SendEth calls common.HexToAddress
+      #14: chain/ethereum.go:20:2: chain.init calls types.init, which calls common.HexToHash
+      #15: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.StorageSize.String
+      #16: chain/ethereum.go:19:2: chain.init calls common.init
+      #17: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA
+      #18: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub
+      #19: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey
+      #20: chain/ethereum.go:20:2: chain.init calls types.init, which calls crypto.Keccak256Hash
+      #21: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress
+      #22: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which calls crypto.Sign
+      #23: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA
+      #24: wallets/address.go:12:2: wallets.init calls crypto.init
+      #25: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt
+      #26: chain/ethereum.go:64:41: chain.EthereumChain.SendEth calls ethclient.Client.PendingNonceAt
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction
+      #28: chain/ethereum.go:74:45: chain.EthereumChain.SendEth calls ethclient.Client.SuggestGasPrice
+      #29: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial
+      #30: chain/ethereum.go:21:2: chain.init calls ethclient.init
+      #31: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls ethereum.init
+      #32: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls hexutil.Big.String
+      #33: wallets/address.go:57:40: wallets.AddressDB.ReadPrivateKeyForAddress calls hexutil.Decode
+      #34: wallets/address.go:81:44: wallets.NewAddress calls hexutil.Encode
+      #35: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.EncodeBig
+      #36: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.Uint64.String
+      #37: chain/ethereum.go:156:27: chain.SendEth calls hexutil.decError.Error
+      #38: wallets/address.go:11:2: wallets.init calls hexutil.init
+      #39: chain/ethereum.go:20:2: chain.init calls types.init, which calls kzg4844.init
+      #40: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Debug
+      #41: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Error
+      #42: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls log.Info
+      #43: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls log.Lvl.String
+      #44: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Root
+      #45: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls log.Trace
+      #46: chain/ethereum.go:20:2: chain.init calls types.init, which calls log.init
+      #47: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Debug
+      #48: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.New
+      #49: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Trace
+      #50: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Warn
+      #51: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls math.PaddedBigBytes
+      #52: wallets/address.go:12:2: wallets.init calls crypto.init, which calls math.init
+      #53: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls mclock.init
+      #54: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.GetOrRegisterHistogramLazy
+      #55: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredGauge
+      #56: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredTimer
+      #57: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilGauge.Inc
+      #58: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilTimer.UpdateSince
+      #59: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardGauge.Inc
+      #60: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardTimer.UpdateSince
+      #61: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.init
+      #62: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls netutil.init
+      #63: chain/ethereum.go:20:2: chain.init calls types.init, which calls params.init
+      #64: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls rlp.Encode
+      #65: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlp.EncodeToBytes
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rlp.Kind.String
+      #67: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #68: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #69: wallets/address.go:12:2: wallets.init calls crypto.init, which calls rlp.init
+      #70: chain/ethereum.go:156:27: chain.SendEth calls rlp.structFieldError.Error
+      #71: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.ProcessFields
+      #72: chain/ethereum.go:156:27: chain.SendEth calls rlpstruct.TagError.Error
+      #73: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.Type.DefaultNilValue
+      #74: wallets/address.go:12:2: wallets.init calls crypto.init, which eventually calls rlpstruct.init
+      #75: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls rpc.BlockNumber.String
+      #76: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls rpc.Client.CallContext
+      #77: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls rpc.DialContext
+      #78: chain/ethereum.go:156:27: chain.SendEth calls rpc.HTTPError.Error
+      #79: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #80: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #81: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #82: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #83: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rpc.idForLog.String
+      #84: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls rpc.init
+      #85: chain/ethereum.go:156:27: chain.SendEth calls rpc.jsonError.Error
+      #86: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.newWebsocketCodec
+      #87: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.stdioConn.Read
+      #88: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls rpc.stdioConn.Write
+      #89: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls rpc.wsHandshakeError.Error
+      #90: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.Add
+      #91: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub, which eventually calls secp256k1.BitCurve.IsOnCurve
+      #92: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls secp256k1.BitCurve.Params
+      #93: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA, which eventually calls secp256k1.BitCurve.ScalarBaseMult
+      #94: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.ScalarMult
+      #95: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls secp256k1.S256
+      #96: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which eventually calls secp256k1.Sign
+      #97: wallets/address.go:12:2: wallets.init calls crypto.init, which calls secp256k1.init
+      #98: chain/ethereum.go:81:57: chain.EthereumChain.SendEth calls types.NewEIP155Signer
+      #99: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction
+      #100: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx
+      #101: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash
+      #102: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls types.Transaction.MarshalBinary
+      #103: chain/ethereum.go:20:2: chain.init calls types.init
+      #104: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+      #105: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+
+Vulnerability #22: GO-2025-4027
+    Gnark-crypto doesn't range check input values during ECDSA and EdDSA
+    deserialization in github.com/consensys/gnark-crypto
+  More info: https://pkg.go.dev/vuln/GO-2025-4027
+  Module: github.com/consensys/gnark-crypto
+    Found in: github.com/consensys/gnark-crypto@v0.10.0
+    Fixed in: github.com/consensys/gnark-crypto@v0.12.0
+    Example traces found:
+      #1: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls addchain.init
+      #2: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls bls12.init
+      #3: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls config.init
+      #4: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls config.init
+      #5: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls ecc.PrecomputeLattice
+      #6: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls ecc.init
+      #7: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.Add
+      #8: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.Inverse
+      #9: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.IsZero
+      #10: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.Mul
+      #11: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.Neg
+      #12: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.Set
+      #13: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.SetOne
+      #14: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.SetString
+      #15: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.SetUint64
+      #16: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.SetZero
+      #17: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Element.Square
+      #18: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.Modulus
+      #19: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fp.init
+      #20: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.Inverse
+      #21: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.IsZero
+      #22: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.Mul
+      #23: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.MulByElement
+      #24: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.SetOne
+      #25: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.SetString
+      #26: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.SetZero
+      #27: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.E2.Square
+      #28: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fptower.init
+      #29: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls fptower.init
+      #30: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fr.Modulus
+      #31: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls fr.init
+      #32: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls hash.init
+      #33: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls parallel.init
+      #34: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls pool.bigIntPool.Get
+      #35: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls pool.bigIntPool.Put
+      #36: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls pool.init
+      #37: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls pool.init
+
+Vulnerability #23: GO-2025-3553
+    Excessive memory allocation during header parsing in
+    github.com/golang-jwt/jwt
+  More info: https://pkg.go.dev/vuln/GO-2025-3553
+  Module: github.com/golang-jwt/jwt
+    Found in: github.com/golang-jwt/jwt@v3.2.2+incompatible
+    Fixed in: N/A
+    Example traces found:
+      #1: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse
+      #2: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls jwt.ValidationError.Error
+      #3: middleware/authcheck.go:11:2: middleware.init calls jwt.init
+
+Vulnerability #24: GO-2024-2819
+    Denial of Service in github.com/ethereum/go-ethereum
+  More info: https://pkg.go.dev/vuln/GO-2024-2819
+  Module: github.com/ethereum/go-ethereum
+    Found in: github.com/ethereum/go-ethereum@v1.13.2
+    Fixed in: github.com/ethereum/go-ethereum@v1.13.15
+    Example traces found:
+      #1: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.Format
+      #2: wallets/address.go:71:47: wallets.EOAFromPublicKey calls common.Address.Hex
+      #3: wallets/wallet.go:150:18: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Scan, which eventually calls common.Address.Scan
+      #4: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Address.String
+      #5: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Address.Value
+      #6: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress, which calls common.BytesToAddress
+      #7: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction, which eventually calls common.CopyBytes
+      #8: chain/ethereum.go:20:2: chain.init calls types.init, which eventually calls common.FromHex
+      #9: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.Format
+      #10: chain/ethereum.go:94:28: chain.EthereumChain.SendEth calls common.Hash.Hex
+      #11: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.Hash.String
+      #12: wallets/wallet.go:148:15: wallets.WalletsDB.WalletsAndAddressesForUser calls sql.Rows.Next, which eventually calls common.Hash.Value
+      #13: chain/ethereum.go:64:83: chain.EthereumChain.SendEth calls common.HexToAddress
+      #14: chain/ethereum.go:20:2: chain.init calls types.init, which calls common.HexToHash
+      #15: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls common.StorageSize.String
+      #16: chain/ethereum.go:19:2: chain.init calls common.init
+      #17: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA
+      #18: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub
+      #19: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey
+      #20: chain/ethereum.go:20:2: chain.init calls types.init, which calls crypto.Keccak256Hash
+      #21: wallets/address.go:71:31: wallets.EOAFromPublicKey calls crypto.PubkeyToAddress
+      #22: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which calls crypto.Sign
+      #23: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA
+      #24: wallets/address.go:12:2: wallets.init calls crypto.init
+      #25: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt
+      #26: chain/ethereum.go:64:41: chain.EthereumChain.SendEth calls ethclient.Client.PendingNonceAt
+      #27: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction
+      #28: chain/ethereum.go:74:45: chain.EthereumChain.SendEth calls ethclient.Client.SuggestGasPrice
+      #29: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial
+      #30: chain/ethereum.go:21:2: chain.init calls ethclient.init
+      #31: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls ethereum.init
+      #32: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls hexutil.Big.String
+      #33: wallets/address.go:57:40: wallets.AddressDB.ReadPrivateKeyForAddress calls hexutil.Decode
+      #34: wallets/address.go:81:44: wallets.NewAddress calls hexutil.Encode
+      #35: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.EncodeBig
+      #36: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls hexutil.Uint64.String
+      #37: chain/ethereum.go:156:27: chain.SendEth calls hexutil.decError.Error
+      #38: wallets/address.go:11:2: wallets.init calls hexutil.init
+      #39: chain/ethereum.go:20:2: chain.init calls types.init, which calls kzg4844.init
+      #40: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Debug
+      #41: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Error
+      #42: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls log.Info
+      #43: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls log.Lvl.String
+      #44: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.Root
+      #45: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls log.Trace
+      #46: chain/ethereum.go:20:2: chain.init calls types.init, which calls log.init
+      #47: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Debug
+      #48: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.New
+      #49: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Trace
+      #50: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls log.logger.Warn
+      #51: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls math.PaddedBigBytes
+      #52: wallets/address.go:12:2: wallets.init calls crypto.init, which calls math.init
+      #53: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls mclock.init
+      #54: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.GetOrRegisterHistogramLazy
+      #55: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredGauge
+      #56: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.NewRegisteredTimer
+      #57: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilGauge.Inc
+      #58: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.NilTimer.UpdateSince
+      #59: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardGauge.Inc
+      #60: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls metrics.StandardTimer.UpdateSince
+      #61: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls metrics.init
+      #62: chain/ethereum.go:21:2: chain.init calls ethclient.init, which eventually calls netutil.init
+      #63: chain/ethereum.go:20:2: chain.init calls types.init, which calls params.init
+      #64: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash, which eventually calls rlp.Encode
+      #65: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlp.EncodeToBytes
+      #66: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rlp.Kind.String
+      #67: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #68: wallets/address.go:12:2: wallets.init calls crypto.init, which calls rlp.init
+      #69: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls rlp.init
+      #70: chain/ethereum.go:156:27: chain.SendEth calls rlp.structFieldError.Error
+      #71: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.ProcessFields
+      #72: chain/ethereum.go:156:27: chain.SendEth calls rlpstruct.TagError.Error
+      #73: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which eventually calls rlpstruct.Type.DefaultNilValue
+      #74: wallets/address.go:12:2: wallets.init calls crypto.init, which eventually calls rlpstruct.init
+      #75: chain/ethereum.go:46:38: chain.EthereumChain.GetBalance calls ethclient.Client.BalanceAt, which eventually calls rpc.BlockNumber.String
+      #76: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls rpc.Client.CallContext
+      #77: chain/ethereum.go:36:31: chain.NewEthereumChain calls ethclient.Dial, which eventually calls rpc.DialContext
+      #78: chain/ethereum.go:156:27: chain.SendEth calls rpc.HTTPError.Error
+      #79: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #80: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.close
+      #81: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #82: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls rpc.handleNonBatchCall
+      #83: helpers/parse.go:46:22: helpers.DecodeJSONBody calls fmt.Sprintf, which eventually calls rpc.idForLog.String
+      #84: chain/ethereum.go:21:2: chain.init calls ethclient.init, which calls rpc.init
+      #85: chain/ethereum.go:156:27: chain.SendEth calls rpc.jsonError.Error
+      #86: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.newWebsocketCodec
+      #87: chain/ethereum.go:140:39: chain.SendEth calls json.Decoder.Decode, which eventually calls rpc.stdioConn.Read
+      #88: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which calls rpc.stdioConn.Write
+      #89: wallets/wallet.go:171:27: wallets.GetWalletAndAddressesForUser calls rpc.wsHandshakeError.Error
+      #90: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.Add
+      #91: wallets/address.go:89:39: wallets.NewAddress calls crypto.FromECDSAPub, which eventually calls secp256k1.BitCurve.IsOnCurve
+      #92: wallets/address.go:80:37: wallets.NewAddress calls crypto.FromECDSA, which calls secp256k1.BitCurve.Params
+      #93: wallets/address.go:62:35: wallets.AddressDB.ReadPrivateKeyForAddress calls crypto.ToECDSA, which eventually calls secp256k1.BitCurve.ScalarBaseMult
+      #94: authz/jwt.go:10:23: authz.ValidateToken calls jwt.Parse, which eventually calls secp256k1.BitCurve.ScalarMult
+      #95: wallets/address.go:75:39: wallets.NewAddress calls crypto.GenerateKey, which eventually calls secp256k1.S256
+      #96: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx, which eventually calls secp256k1.Sign
+      #97: wallets/address.go:12:2: wallets.init calls crypto.init, which calls secp256k1.init
+      #98: chain/ethereum.go:81:57: chain.EthereumChain.SendEth calls types.NewEIP155Signer
+      #99: chain/ethereum.go:78:28: chain.EthereumChain.SendEth calls types.NewTransaction
+      #100: chain/ethereum.go:81:31: chain.EthereumChain.SendEth calls types.SignTx
+      #101: chain/ethereum.go:94:22: chain.EthereumChain.SendEth calls types.Transaction.Hash
+      #102: chain/ethereum.go:88:34: chain.EthereumChain.SendEth calls ethclient.Client.SendTransaction, which calls types.Transaction.MarshalBinary
+      #103: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+      #104: wallets/wallet.go:177:28: wallets.GetWalletAndAddressesForUser calls json.Encoder.Encode, which eventually calls types.init
+      #105: chain/ethereum.go:20:2: chain.init calls types.init
+
+Your code is affected by 24 vulnerabilities from 4 modules and the Go standard library.
+This scan also found 7 vulnerabilities in packages you import and 27
+vulnerabilities in modules you require, but your code doesn't appear to call
+these vulnerabilities.
+Use '-show verbose' for more details.
+exit status 3

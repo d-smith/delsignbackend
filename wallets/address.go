@@ -3,14 +3,17 @@ package wallets
 import (
 	"crypto/ecdsa"
 	"database/sql"
-	"encoding/json"
+	"delsignbackend/helpers"
+	"delsignbackend/middleware"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/gorilla/mux"
 )
 
 type Address struct {
@@ -20,26 +23,24 @@ type Address struct {
 }
 
 type AddressDB struct {
-	db *sql.DB
+	db     *sql.DB
+	cipher *KeyCipher
 }
 
-func NewAddressDB() *AddressDB {
-	db, err := sql.Open("sqlite3", dbfile)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	return &AddressDB{db: db}
+// NewAddressDB returns a store that encrypts private keys with the given cipher.
+func NewAddressDB(db *sql.DB, cipher *KeyCipher) *AddressDB {
+	return &AddressDB{db: db, cipher: cipher}
 }
 
 var AddressDatabase *AddressDB
 
-func (adb *AddressDB) Close() {
-	adb.db.Close()
-}
-
 func (adb *AddressDB) CreateAddressForWallet(walletId int, eoa string, privateKey string, publicKey string) error {
-	_, err := adb.db.Exec("INSERT INTO addresses(wallet_id,address,private_key,public_key) VALUES(?,?,?,?);", walletId, eoa, privateKey, publicKey)
+	encrypted, err := adb.cipher.Encrypt(eoa, privateKey)
+	if err != nil {
+		return err
+	}
+
+	_, err = adb.db.Exec("INSERT INTO addresses(wallet_id,address,private_key,public_key) VALUES(?,?,?,?);", walletId, eoa, encrypted, publicKey)
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,12 @@ func (adb *AddressDB) ReadPrivateKeyForAddress(address string) (*ecdsa.PrivateKe
 		return nil, err
 	}
 
-	privateKeyBytes, err := hexutil.Decode(privateKeyFromDB)
+	decrypted, err := adb.cipher.Decrypt(address, privateKeyFromDB)
+	if err != nil {
+		return nil, fmt.Errorf("address %s: %w", address, err)
+	}
+
+	privateKeyBytes, err := hexutil.Decode(decrypted)
 	if err != nil {
 		return nil, err
 	}
@@ -67,36 +73,57 @@ func (adb *AddressDB) ReadPrivateKeyForAddress(address string) (*ecdsa.PrivateKe
 	return privateKey, nil
 }
 
+// ImportKey stores an existing private key (hex, with or without 0x) as an
+// address of the given wallet, and returns the address.
+func (adb *AddressDB) ImportKey(walletId int, keyHex string) (string, error) {
+	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(keyHex, "0x"))
+	if err != nil {
+		return "", errors.New("invalid private key")
+	}
+	address := addressFromKey(privateKey)
+
+	var exists bool
+	err = adb.db.QueryRow("SELECT EXISTS(SELECT 1 FROM wallets WHERE id=?);", walletId).Scan(&exists)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return "", fmt.Errorf("wallet %d does not exist", walletId)
+	}
+
+	err = adb.db.QueryRow("SELECT EXISTS(SELECT 1 FROM addresses WHERE address=?);", address.EOA).Scan(&exists)
+	if err != nil {
+		return "", err
+	}
+	if exists {
+		return "", fmt.Errorf("address %s is already stored", address.EOA)
+	}
+
+	if err := adb.CreateAddressForWallet(walletId, address.EOA, address.PrivateKey, address.PublicKey); err != nil {
+		return "", err
+	}
+	return address.EOA, nil
+}
+
 func EOAFromPublicKey(publicKey *ecdsa.PublicKey) string {
 	return crypto.PubkeyToAddress(*publicKey).Hex()
 }
 
-func NewAddress() *Address {
+// NewAddress generates a fresh key pair.
+func NewAddress() (*Address, error) {
 	privateKey, err := crypto.GenerateKey()
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
-	privateKeyBytes := crypto.FromECDSA(privateKey)
-	log.Println("Private Key:", hexutil.Encode(privateKeyBytes))
+	return addressFromKey(privateKey), nil
+}
 
-	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
-	if !ok {
-		log.Fatal("cannot assert type: publicKey is not of type *ecdsa.PublicKey")
-	}
-
-	publicKeyBytes := crypto.FromECDSAPub(publicKeyECDSA)
-	log.Println("Public Key:", hexutil.Encode(publicKeyBytes))
-
-	log.Println("Generating address")
-	address := EOAFromPublicKey(publicKey.(*ecdsa.PublicKey))
-	log.Printf("Generated address %s\n", address)
-
+func addressFromKey(privateKey *ecdsa.PrivateKey) *Address {
 	return &Address{
-		EOA:        address,
-		PrivateKey: hexutil.Encode(privateKeyBytes),
-		PublicKey:  hexutil.Encode(publicKeyBytes),
+		EOA:        EOAFromPublicKey(&privateKey.PublicKey),
+		PrivateKey: hexutil.Encode(crypto.FromECDSA(privateKey)),
+		PublicKey:  hexutil.Encode(crypto.FromECDSAPub(&privateKey.PublicKey)),
 	}
 }
 
@@ -106,43 +133,41 @@ type EOA struct {
 
 func CreateAddressForWallet(rw http.ResponseWriter, r *http.Request) {
 	// Get the user email from the jwt claims
-	email := r.Context().Value("email").(string)
-	if email == "" {
-		http.Error(rw, "Missing email", 403)
+	email, ok := middleware.EmailFromContext(r.Context())
+	if !ok {
+		http.Error(rw, "Missing email", http.StatusForbidden)
 		return
 	}
 
-	// Check there us a wallet with the given id for this user
-	params := mux.Vars(r)
-	walletId := params["id"]
-	if walletId == "" {
-		http.Error(rw, "Missing wallet id", 403)
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		http.Error(rw, "Invalid wallet id", http.StatusBadRequest)
 		return
 	}
 
-	log.Printf("Check user owns wallet %s\n", walletId)
-	id, err := strconv.Atoi(walletId)
+	// Check there is a wallet with the given id for this user
+	owns, err := WalletsDatabase.UserOwnsWallet(email, id)
 	if err != nil {
-		http.Error(rw, "Invalid wallet id", 403)
+		helpers.ServerError(rw, err)
+		return
+	}
+	if !owns {
+		http.Error(rw, "Wallet is not yours", http.StatusForbidden)
 		return
 	}
 
-	if WalletsDatabase.UserOwnsWallet(email, id) == false {
-		http.Error(rw, "Invalid wallet id", 403)
+	// Generate a new address and store it
+	address, err := NewAddress()
+	if err != nil {
+		helpers.ServerError(rw, err)
 		return
 	}
-
-	// Generate new address
-	address := NewAddress()
-	log.Printf("New address %s\n", address.EOA)
-
-	// Store it
 	err = AddressDatabase.CreateAddressForWallet(id, address.EOA, address.PrivateKey, address.PublicKey)
+	if err != nil {
+		helpers.ServerError(rw, err)
+		return
+	}
+	log.Printf("New address %s in wallet %d\n", address.EOA, id)
 
-	//Return the EOA
-	eoa := EOA{EOA: address.EOA}
-	rw.Header().Set("Content-Type", "application/json")
-	rw.WriteHeader(http.StatusCreated)
-	json.NewEncoder(rw).Encode(eoa)
-
+	helpers.WriteJSON(rw, http.StatusCreated, EOA{EOA: address.EOA})
 }
